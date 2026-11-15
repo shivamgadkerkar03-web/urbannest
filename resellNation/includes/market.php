@@ -127,6 +127,9 @@ function un_conversations(mysqli $con, int $me): array
             GROUP BY t.product_id, t.other_id, p.productName, p.images, p.price, p.userId, u.FullName
             ORDER BY last_at DESC";
     $stmt = mysqli_prepare($con, $sql);
+    if (!$stmt) {
+        return [];
+    }
     mysqli_stmt_bind_param($stmt, 'iiii', $me, $me, $me, $me);
     mysqli_stmt_execute($stmt);
     $res = mysqli_stmt_get_result($stmt);
@@ -152,6 +155,9 @@ function un_conversations(mysqli $con, int $me): array
 function un_unread_total(mysqli $con, int $me): int
 {
     $stmt = mysqli_prepare($con, 'SELECT COUNT(*) FROM product_messages WHERE receiver_id = ? AND is_read = 0');
+    if (!$stmt) {
+        return 0;
+    }
     mysqli_stmt_bind_param($stmt, 'i', $me);
     mysqli_stmt_execute($stmt);
     mysqli_stmt_bind_result($stmt, $count);
@@ -177,6 +183,9 @@ function un_resolve_partner(mysqli $con, int $me, int $productId, ?array $produc
         }
         // A seller may only reply to someone who has already asked about this item.
         $stmt = mysqli_prepare($con, 'SELECT 1 FROM product_messages WHERE product_id = ? AND sender_id = ? AND receiver_id = ? LIMIT 1');
+        if (!$stmt) {
+            return [0, 'Unable to verify buyer.'];
+        }
         mysqli_stmt_bind_param($stmt, 'iii', $productId, $requestedOther, $me);
         mysqli_stmt_execute($stmt);
         $ok = (bool) mysqli_fetch_row(mysqli_stmt_get_result($stmt));
@@ -197,6 +206,9 @@ function un_thread(mysqli $con, int $me, int $other, int $productId): array
         FROM product_messages
         WHERE product_id = ? AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
         ORDER BY created_at ASC, id ASC');
+    if (!$stmt) {
+        return [];
+    }
     mysqli_stmt_bind_param($stmt, 'iiiii', $productId, $me, $other, $other, $me);
     mysqli_stmt_execute($stmt);
     $res = mysqli_stmt_get_result($stmt);
@@ -217,6 +229,9 @@ function un_thread(mysqli $con, int $me, int $other, int $productId): array
 function un_mark_read(mysqli $con, int $me, int $other, int $productId): void
 {
     $stmt = mysqli_prepare($con, 'UPDATE product_messages SET is_read = 1 WHERE product_id = ? AND sender_id = ? AND receiver_id = ? AND is_read = 0');
+    if (!$stmt) {
+        return;
+    }
     mysqli_stmt_bind_param($stmt, 'iii', $productId, $other, $me);
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
