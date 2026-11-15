@@ -1,59 +1,41 @@
 <?php
-$con = mysqli_connect("localhost", "root", "", "urbanest");
-if (mysqli_connect_errno()) {
-    echo "Connection Fail" . mysqli_connect_error();
+require_once __DIR__ . '/../../includes/security.php';
+require_once __DIR__ . '/../includes/dbconnection.php';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    json_fail(405, 'Method not allowed.');
+}
+$ownerid = current_owner_id();
+if ($ownerid <= 0) {
+    json_fail(401, 'Please log in again.');
+}
+if (!csrf_valid()) {
+    json_fail(403, 'Invalid or expired request. Please refresh the page.');
 }
 
-$request_body = file_get_contents('php://input');
-$data = json_decode($request_body, true);
-$uid = $data['uid'];
-$pgid = $data['pgid'];
-
-
-
-// Construct and execute the SQL query
-// $query = "DELETE FROM tblbookpg WHERE Userid='$uid' AND Pgid='$pgid'";
-// mysqli_query($con, $query);
-
-// $result = mysqli_query($con, $query);
-// if ($result) {
-//     if (mysqli_affected_rows($con) > 0) {
-//         echo "Delete successful";
-//     } else {
-//         echo "No matching found";
-//     }
-// } else {
-//     // echo "Delete failed: " . mysqli_error($con);
-//     echo "Delete failed: ";
-// }
-
-
-$query = "SELECT PGTitle FROM tblpg WHERE ID='$pgid'";
-$result = mysqli_query($con, $query);
-if ($result && mysqli_num_rows($result) > 0) {
-    $row = mysqli_fetch_assoc($result);
-    $pgName = $row['PGTitle'];
-
-    // Construct and execute the SQL query to delete from tblbookpg
-    $deleteQuery = "DELETE FROM tblbookpg WHERE Userid='$uid' AND Pgid='$pgid'";
-    mysqli_query($con, $deleteQuery);
-    
-    if (mysqli_affected_rows($con) > 0) {
-        // Construct and execute the SQL query to delete from adroomie
-        // echo "DELETE FROM adroomie WHERE choosePG='$pgName' AND userId='$uid'";
-        $deleteAdroomieQuery = "DELETE FROM adroomie WHERE choosePG='$pgName' AND userId='$uid'";
-        mysqli_query($con, $deleteAdroomieQuery);
-
-        if (mysqli_affected_rows($con) > 0) {
-            echo "Delete successful";
-        } else {
-            echo "No matching found in adroomie";
-        }
-    } else {
-        echo "No matching found in tblbookpg";
-    }
-} else {
-    echo "No PGTitle found for the given pgid";
+$data = json_decode((string) file_get_contents('php://input'), true);
+$bookingId = (int) ($data['bookingId'] ?? 0);
+if ($bookingId <= 0) {
+    json_fail(422, 'Invalid booking.');
 }
 
-?>
+// Bookings are cancelled rather than deleted so the tenant still sees the outcome.
+$stmt = mysqli_prepare(
+    $con,
+    "UPDATE tblbookpg b JOIN tblpg p ON p.ID = b.Pgid
+     SET b.Status = 'Cancelled', b.Remark = COALESCE(NULLIF(b.Remark, ''), 'Cancelled by owner')
+     WHERE b.ID = ? AND p.OwnerID = ? AND (b.Status IS NULL OR b.Status <> 'Cancelled')"
+);
+mysqli_stmt_bind_param($stmt, 'ii', $bookingId, $ownerid);
+if (!mysqli_stmt_execute($stmt)) {
+    json_fail(500, 'Could not cancel the booking.');
+}
+$changed = mysqli_stmt_affected_rows($stmt) > 0;
+mysqli_stmt_close($stmt);
+
+if (!$changed) {
+    json_fail(404, 'Booking not found or already cancelled.');
+}
+
+header('Content-Type: application/json');
+echo json_encode(['success' => true, 'message' => 'Booking cancelled.']);

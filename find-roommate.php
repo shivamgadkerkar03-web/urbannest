@@ -1,6 +1,5 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
 include_once('includes/roommate-functions.php');
 include_once('includes/roommate-compatibility.php');
@@ -23,24 +22,19 @@ if ($search_gender)    $filters['gender_preference']  = $search_gender;
 if ($search_budget)    $filters['budget_max']          = $search_budget;
 if ($search_room_type) $filters['room_type']           = $search_room_type;
 
+$flash = $_SESSION['rm_flash'] ?? null;
+unset($_SESSION['rm_flash']);
+
 $listings = getRoommateListings($con, $filters);
 $seekers  = getRoommatePreferences($con, $filters);
 ?>
 <!DOCTYPE html>
 <html lang="en" class="no-js">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<?php include __DIR__ . '/includes/head.php'; ?>
     <title>Find Your Roommate – UrbanNest</title>
     <meta name="description" content="Find your perfect roommate in India. Browse listings, connect with people, and discover compatibility on UrbanNest.">
 
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-    <link rel="stylesheet" href="css/linearicons.css">
-    <link rel="stylesheet" href="css/font-awesome.min.css">
-    <link rel="stylesheet" href="css/bootstrap.css">
-    <link rel="stylesheet" href="css/main.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
     <style>
         .rm-hero { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 80px 0 60px; color: #fff; }
@@ -111,15 +105,22 @@ $seekers  = getRoommatePreferences($con, $filters);
 <section class="section-gap">
     <div class="container">
 
+        <?php if ($flash): ?>
+        <div class="alert alert-<?= esc($flash['type']) ?> alert-dismissible fade show" role="alert">
+            <?= esc($flash['msg']) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php endif; ?>
+
         <!-- Tab Toggle -->
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h2 class="mb-0" style="font-size:1.5rem;font-weight:700;">Browse Roommates</h2>
             <div class="tab-toggle btn-group" role="group">
-                <a href="?tab=listings<?= $search_city ? '&city='.urlencode($search_city) : '' ?>" 
+                <a href="?tab=listings<?= $search_city ? '&amp;city='.urlencode($search_city) : '' ?>" 
                    class="btn <?= $search_tab === 'seekers' ? 'btn-outline-danger' : 'btn-danger' ?>">
                    🏠 Room Listings (<?= count($listings) ?>)
                 </a>
-                <a href="?tab=seekers<?= $search_city ? '&city='.urlencode($search_city) : '' ?>" 
+                <a href="?tab=seekers<?= $search_city ? '&amp;city='.urlencode($search_city) : '' ?>" 
                    class="btn <?= $search_tab === 'seekers' ? 'btn-danger' : 'btn-outline-danger' ?>">
                    🔍 Room Seekers (<?= count($seekers) ?>)
                 </a>
@@ -196,6 +197,7 @@ $seekers  = getRoommatePreferences($con, $filters);
                 
                 // Request status
                 $reqStatus = $uid ? getRequestStatus($con, $uid, $l['user_id']) : null;
+                if ($reqStatus && !in_array($reqStatus['status'], ['Pending', 'Accepted'], true)) $reqStatus = null;
             ?>
             <div class="col-lg-4 col-md-6">
                 <div class="rm-card card h-100 position-relative">
@@ -235,14 +237,14 @@ $seekers  = getRoommatePreferences($con, $filters);
                         <?php endif; ?>
 
                         <div class="d-flex gap-2 mt-auto pt-2">
-                            <a href="roommate-details.php?id=<?= $l['id'] ?>&type=listing" class="btn btn-outline-danger connect-btn flex-grow-1">View Details</a>
+                            <a href="roommate-details.php?id=<?= (int)$l['id'] ?>&type=listing" class="btn btn-outline-danger connect-btn flex-grow-1">View Details</a>
                             <?php if ($uid && $uid != $l['user_id']): ?>
                                 <?php if ($reqStatus): ?>
                                     <span class="btn btn-sm btn-secondary connect-btn">
                                         <?= esc($reqStatus['status']) ?>
                                     </span>
                                 <?php else: ?>
-                                    <a href="send-request.php?to=<?= $l['user_id'] ?>&listing=<?= $l['id'] ?>" class="btn btn-danger connect-btn">Connect</a>
+                                    <a href="send-request.php?to=<?= (int)$l['user_id'] ?>&listing=<?= (int)$l['id'] ?>&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-danger connect-btn">Connect</a>
                                 <?php endif; ?>
                             <?php elseif(!$uid): ?>
                                 <a href="signin.php" class="btn btn-danger connect-btn">Login</a>
@@ -273,6 +275,7 @@ $seekers  = getRoommatePreferences($con, $filters);
                     if ($theirProf) $compat = calculateCompatibility($myProfile, $theirProf);
                 }
                 $reqStatus = $uid ? getRequestStatus($con, $uid, $s['user_id']) : null;
+                if ($reqStatus && !in_array($reqStatus['status'], ['Pending', 'Accepted'], true)) $reqStatus = null;
             ?>
             <div class="col-lg-4 col-md-6">
                 <div class="rm-card card h-100">
@@ -282,7 +285,7 @@ $seekers  = getRoommatePreferences($con, $filters);
                             <div>
                                 <h5 class="mb-0"><?= esc($s['FullName']) ?></h5>
                                 <small class="text-muted">
-                                    <?= $s['age'] ? $s['age'].' yrs • ' : '' ?><?= esc($s['gender'] ?? 'N/A') ?>
+                                    <?= $s['age'] ? (int)$s['age'].' yrs • ' : '' ?><?= esc($s['gender'] ?? 'N/A') ?>
                                 </small>
                             </div>
                         </div>
@@ -296,7 +299,7 @@ $seekers  = getRoommatePreferences($con, $filters);
                         </div>
                         <p class="small text-muted">Move-in: <?= fmtDate($s['move_in_date']) ?></p>
                         <?php if($s['additional_requirements']): ?>
-                        <p class="small text-muted mb-2"><?= esc(substr($s['additional_requirements'],0,80)) ?>...</p>
+                        <p class="small text-muted mb-2"><?= esc(mb_substr($s['additional_requirements'],0,80)) ?>...</p>
                         <?php endif; ?>
 
                         <?php if ($uid && $uid != $s['user_id']): ?>
@@ -312,12 +315,12 @@ $seekers  = getRoommatePreferences($con, $filters);
                         <?php endif; ?>
 
                         <div class="d-flex gap-2 mt-auto pt-2">
-                            <a href="roommate-details.php?id=<?= $s['user_id'] ?>&type=seeker" class="btn btn-outline-danger connect-btn flex-grow-1">View Profile</a>
+                            <a href="roommate-details.php?id=<?= (int)$s['user_id'] ?>&type=seeker" class="btn btn-outline-danger connect-btn flex-grow-1">View Profile</a>
                             <?php if ($uid && $uid != $s['user_id']): ?>
                                 <?php if ($reqStatus): ?>
                                     <span class="btn btn-sm btn-secondary connect-btn"><?= esc($reqStatus['status']) ?></span>
                                 <?php else: ?>
-                                    <a href="send-request.php?to=<?= $s['user_id'] ?>" class="btn btn-danger connect-btn">Connect</a>
+                                    <a href="send-request.php?to=<?= (int)$s['user_id'] ?>&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-danger connect-btn">Connect</a>
                                 <?php endif; ?>
                             <?php elseif(!$uid): ?>
                                 <a href="signin.php" class="btn btn-danger connect-btn">Login</a>
@@ -336,8 +339,5 @@ $seekers  = getRoommatePreferences($con, $filters);
 
 <?php include_once('includes/footer.php'); ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/vendor/jquery-2.2.4.min.js"></script>
-<script src="js/main.js"></script>
 </body>
 </html>

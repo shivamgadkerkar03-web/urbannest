@@ -1,46 +1,45 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasuid']==0)) {
-  header('location:logout.php');
-  } else{
-    if(isset($_POST['submit']))
-  {
-    $uid=$_SESSION['pgasuid'];
-    $cpassword=md5($_POST['currentpassword']);
-$newpassword=md5($_POST['newpassword']);
-$query=mysqli_query($con,"select ID from tbluser where ID='$uid' and   Password='$cpassword'");
-$row=mysqli_fetch_array($query);
-if($row>0){
-$ret=mysqli_query($con,"update tbluser set Password='$newpassword' where ID='$uid'");
-$msg= "Your password successully changed"; 
-} else {
+$uid = require_user('signin.php');
 
-$msg="Your current password is wrong";
+$msg = '';
+if (isset($_POST['submit'])) {
+	csrf_check();
+	$current = (string) ($_POST['currentpassword'] ?? '');
+	$new = (string) ($_POST['newpassword'] ?? '');
+	$confirm = (string) ($_POST['confirmpassword'] ?? '');
+
+	$stmt = mysqli_prepare($con, "SELECT Password FROM tbluser WHERE ID = ?");
+	mysqli_stmt_bind_param($stmt, 'i', $uid);
+	mysqli_stmt_execute($stmt);
+	$row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+	mysqli_stmt_close($stmt);
+
+	if (!$row || !verify_password($current, $row['Password'])) {
+		$msg = "Your current password is wrong";
+	} elseif (strlen($new) < 6) {
+		$msg = "New password must be at least 6 characters.";
+	} elseif ($new !== $confirm) {
+		$msg = "New Password and Confirm Password do not match.";
+	} else {
+		$hash = hash_password($new);
+		$stmt = mysqli_prepare($con, "UPDATE tbluser SET Password = ? WHERE ID = ?");
+		mysqli_stmt_bind_param($stmt, 'si', $hash, $uid);
+		$ok = mysqli_stmt_execute($stmt);
+		mysqli_stmt_close($stmt);
+		$msg = $ok ? "Your password successfully changed" : "Something went wrong. Please try again.";
+	}
 }
-}
-  
-  ?>
+?>
 <!DOCTYPE html>
-<html lang="zxx" class="no-js">
+<html lang="en" class="no-js">
 
 <head>
+	<?php include __DIR__ . '/includes/head.php'; ?>
 	
 	<title>UrbanNest || Change Password</title>
 
-	<link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-	<!--
-			CSS
-			============================================= -->
-	<link rel="stylesheet" href="css/linearicons.css">=
-	<link rel="stylesheet" href="css/font-awesome.min.css">
-	<link rel="stylesheet" href="css/nice-select.css">
-	<link rel="stylesheet" href="css/ion.rangeSlider.css" />
-	<link rel="stylesheet" href="css/ion.rangeSlider.skinFlat.css" />
-	<link rel="stylesheet" href="css/bootstrap.css">
-	<link rel="stylesheet" href="css/owl.carousel.css">
-	<link rel="stylesheet" href="css/main.css">
 	<script type="text/javascript">
 function checkpass()
 {
@@ -86,21 +85,15 @@ return true;
 
 	<section class="contact-page-area section-gap">
 		<div class="container">
-			<p style="text-align: center;color: red;font-size: 30px"><strong>Change Password</strong></p>
-			<div class="row mt-80">
+			<div class="row justify-content-center">
+				<div class="col-xl-5 col-lg-6 col-md-8">
+				<div class="auth-card">
+				<h2 class="text-center mb-4">Change Password</h2>
 				
- <p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
-				<?php
-$uid=$_SESSION['pgasuid'];
-$ret=mysqli_query($con,"select * from tbluser where ID='$uid'");
-$cnt=1;
-while ($row=mysqli_fetch_array($ret)) {
-
-?>
+ <?php if ($msg) { ?><div class="alert alert-info py-2 text-center"><?= h($msg) ?></div><?php } ?>
 				<div class="col-lg-12">
 					<form class="row contact_form" action="" method="post" id="" name="changepassword" onsubmit="return checkpass();">
+						<?= csrf_field() ?>
 						<div class="col-md-12">
 
 							
@@ -117,11 +110,12 @@ while ($row=mysqli_fetch_array($ret)) {
 							</div>
 							
 						</div>
-						<?php } ?>
-						<div class="col-md-12 text-center">
-							<button type="submit" value="submit" name='submit' class="btn primary-btn">Change</button>
+						<div class="col-12">
+							<button type="submit" value="submit" name='submit' class="btn btn-primary w-100">Change</button>
 						</div>
 					</form>
+				</div>
+				</div>
 				</div>
 			</div>
 		</div>
@@ -133,20 +127,6 @@ while ($row=mysqli_fetch_array($ret)) {
 	<?php include_once('includes/footer.php');?>
 
 
-	<script src="js/vendor/jquery-2.2.4.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js" integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4"
-	 crossorigin="anonymous"></script>
-	<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBhOdIF3Y9382fqJYt5I_sswSrEw5eihAA"></script>
-	<script src="js/vendor/bootstrap.min.js"></script>
-	<script src="js/jquery.ajaxchimp.min.js"></script>
-	<script src="js/jquery.nice-select.min.js"></script>
-	<script src="js/jquery.sticky.js"></script>
-	<script src="js/ion.rangeSlider.js"></script>
-	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-	<script src="js/jquery.magnific-popup.min.js"></script>
-	<script src="js/owl.carousel.min.js"></script>
-	<script src="js/main.js"></script>
 </body>
 
 </html>
-<?php }  ?>

@@ -1,22 +1,24 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
 include_once('includes/roommate-functions.php');
 
-if (empty($_SESSION['pgasuid'])) { header('location: signin.php'); exit; }
-$uid = (int)$_SESSION['pgasuid'];
+$isAjax = isset($_GET['poll']) || ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_send']));
+if ($isAjax && current_user_id() <= 0) {
+    json_fail(401, 'Please log in again.');
+}
+$uid = require_user('signin.php');
 $other_id = (int)($_GET['user'] ?? 0);
 
 if (!$other_id || $other_id === $uid) {
-    header('location: messages.php');
-    exit;
+    if ($isAjax) json_fail(400, 'Invalid conversation.');
+    redirect_to('messages.php');
 }
 
-// Security: Only connected users can chat
+// Only connected users can chat
 if (!areConnected($con, $uid, $other_id)) {
-    header('location: messages.php?error=not_connected');
-    exit;
+    if ($isAjax) json_fail(403, 'Not connected');
+    redirect_to('messages.php?error=not_connected');
 }
 
 // Get other user info
@@ -25,13 +27,19 @@ mysqli_stmt_bind_param($stmt, 'i', $other_id);
 mysqli_stmt_execute($stmt);
 $or = mysqli_stmt_get_result($stmt);
 $otherUser = mysqli_fetch_assoc($or);
-if (!$otherUser) { header('location: messages.php'); exit; }
+if (!$otherUser) {
+    if ($isAjax) json_fail(404, 'User not found.');
+    redirect_to('messages.php');
+}
 
 // Get/create conversation
 $conv_id = getOrCreateConversation($con, $uid, $other_id);
 
 // Handle AJAX send message
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_send'])) {
+    if (!csrf_valid()) {
+        json_fail(400, 'Session expired. Please refresh the page.');
+    }
     header('Content-Type: application/json');
     $msg_text = trim($_POST['message'] ?? '');
     if (!$msg_text || strlen($msg_text) > 2000) {
@@ -52,11 +60,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_send'])) {
         }
         // Update conversation last_message_at
         mysqli_query($con, "UPDATE roommate_conversations SET last_message_at = NOW() WHERE id = $conv_id");
+        // Use the database timestamp so the bubble matches messages loaded later
+        $created = date('Y-m-d H:i:s');
+        $tq = mysqli_prepare($con, "SELECT created_at FROM roommate_messages WHERE id = ?");
+        mysqli_stmt_bind_param($tq, 'i', $new_msg_id);
+        mysqli_stmt_execute($tq);
+        $trow = mysqli_fetch_assoc(mysqli_stmt_get_result($tq));
+        if ($trow) {
+            $created = $trow['created_at'];
+        }
         echo json_encode([
             'success' => true,
             'id' => (int)$new_msg_id,
-            'timestamp' => date('Y-m-d H:i:s'),
-            'time' => date('h:i A')
+            'timestamp' => $created,
+            'time' => date('h:i A', strtotime($created))
         ]);
     } else {
         echo json_encode(['success' => false]);
@@ -80,7 +97,7 @@ if (isset($_GET['poll'])) {
             'message' => htmlspecialchars($row['message'], ENT_QUOTES, 'UTF-8'),
             'created_at' => $row['created_at'],
             'time' => date('h:i A', strtotime($row['created_at'])),
-            'sender_name' => $row['sender_name']
+            'sender_name' => htmlspecialchars($row['sender_name'], ENT_QUOTES, 'UTF-8')
         ];
     }
     // Mark as read
@@ -109,15 +126,8 @@ $myName = $_SESSION['FullName'] ?? 'You';
 <!DOCTYPE html>
 <html lang="en" class="no-js">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<?php include __DIR__ . '/includes/head.php'; ?>
     <title>Chat with <?= esc($otherUser['FullName']) ?> – UrbanNest</title>
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-    <link rel="stylesheet" href="css/linearicons.css">
-    <link rel="stylesheet" href="css/font-awesome.min.css">
-    <link rel="stylesheet" href="css/bootstrap.css">
-    <link rel="stylesheet" href="css/main.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .chat-wrapper { display: flex; flex-direction: column; height: calc(100vh - 200px); min-height: 520px; max-width: 750px; margin: 30px auto; background:#fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.1); overflow: hidden; }
         .chat-header { background: linear-gradient(135deg, #1a1a2e, #0f3460); color:#fff; padding: 16px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -167,7 +177,7 @@ $myName = $_SESSION['FullName'] ?? 'You';
                 if ($msgDate !== $prevDate): $prevDate = $msgDate; ?>
             <div class="date-divider"><span><?= $msgDate ?></span></div>
             <?php endif; ?>
-            <div class="msg-bubble <?= $isMe ? 'me' : 'them' ?>" data-id="<?= $m['id'] ?>">
+            <div class="msg-bubble <?= $isMe ? 'me' : 'them' ?>" data-id="<?= (int)$m['id'] ?>">
                 <div class="bubble"><?= nl2br(esc($m['message'])) ?></div>
                 <div class="time"><?= date('h:i A', strtotime($m['created_at'])) ?></div>
             </div>
@@ -190,12 +200,11 @@ $myName = $_SESSION['FullName'] ?? 'You';
 </div>
 
 <?php include_once('includes/footer.php'); ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/vendor/jquery-2.2.4.min.js"></script>
 <script>
 const ME_ID = <?= $uid ?>;
 const OTHER_ID = <?= $other_id ?>;
-let lastId = <?= $last_id ?>;
+let lastId = <?= (int)$last_id ?>;
+const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
 const chatBody = document.getElementById('chatBody');
 
 function scrollBottom() {
@@ -246,7 +255,7 @@ document.getElementById('msgForm').addEventListener('submit', function(e) {
     fetch('chat.php?user=<?= $other_id ?>', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'ajax_send=1&message=' + encodeURIComponent(text)
+        body: 'ajax_send=1&csrf_token=' + encodeURIComponent(CSRF_TOKEN) + '&message=' + encodeURIComponent(text)
     })
     .then(r => r.json())
     .then(data => {

@@ -1,6 +1,5 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
 include_once('includes/roommate-functions.php');
 include_once('includes/roommate-compatibility.php');
@@ -17,7 +16,7 @@ $ownerPref    = null;
 $compat       = ['score' => 0, 'breakdown' => []];
 
 if ($type === 'listing') {
-    $stmt = mysqli_prepare($con, "SELECT rl.*, u.FullName, u.Email FROM roommate_listings rl JOIN tbluser u ON rl.user_id = u.ID WHERE rl.id = ? AND rl.is_active = 1 LIMIT 1");
+    $stmt = mysqli_prepare($con, "SELECT rl.*, u.FullName FROM roommate_listings rl JOIN tbluser u ON rl.user_id = u.ID WHERE rl.id = ? AND rl.is_active = 1 LIMIT 1");
     mysqli_stmt_bind_param($stmt, 'i', $id);
     mysqli_stmt_execute($stmt);
     $r = mysqli_stmt_get_result($stmt);
@@ -29,20 +28,26 @@ if ($type === 'listing') {
         }
     }
 } else {
-    // seeker: $id is user_id
-    $stmt = mysqli_prepare($con, "SELECT * FROM tbluser WHERE ID = ? LIMIT 1");
-    mysqli_stmt_bind_param($stmt, 'i', $id);
-    mysqli_stmt_execute($stmt);
-    $r = mysqli_stmt_get_result($stmt);
-    $urow = mysqli_fetch_assoc($r);
+    // seeker: $id is user_id; only users with an active requirement are shown
+    $pref_q = mysqli_prepare($con, "SELECT * FROM roommate_preferences WHERE user_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1");
+    mysqli_stmt_bind_param($pref_q, 'i', $id);
+    mysqli_stmt_execute($pref_q);
+    $ownerPref = mysqli_fetch_assoc(mysqli_stmt_get_result($pref_q));
+
+    $urow = null;
+    if ($ownerPref) {
+        $stmt = mysqli_prepare($con, "SELECT ID, FullName FROM tbluser WHERE ID = ? LIMIT 1");
+        mysqli_stmt_bind_param($stmt, 'i', $id);
+        mysqli_stmt_execute($stmt);
+        $urow = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    }
     if ($urow) {
         $ownerProfile = getRoommateProfile($con, $id);
-        $pref_q = mysqli_prepare($con, "SELECT * FROM roommate_preferences WHERE user_id = ? LIMIT 1");
-        mysqli_stmt_bind_param($pref_q, 'i', $id);
-        mysqli_stmt_execute($pref_q);
-        $pr = mysqli_stmt_get_result($pref_q);
-        $ownerPref = mysqli_fetch_assoc($pr);
-        $data = array_merge($urow, $ownerPref ?? [], $ownerProfile ?? []);
+        if ($ownerProfile) {
+            unset($ownerProfile['Email'], $ownerProfile['MobileNumber'], $ownerProfile['dob']);
+        }
+        $data = array_merge($urow, $ownerProfile ?? [], $ownerPref);
+        $data['user_id'] = $id;
         if ($uid && $myProfile && $ownerProfile) {
             $compat = calculateCompatibility($myProfile, $ownerProfile, $ownerPref);
         }
@@ -56,21 +61,17 @@ if (!$data) {
 
 $targetUserId = $data['user_id'] ?? $id;
 $reqStatus = $uid ? getRequestStatus($con, $uid, $targetUserId) : null;
+if ($reqStatus && !in_array($reqStatus['status'], ['Pending', 'Accepted'], true)) {
+    $reqStatus = null;
+}
 $connected = $uid ? areConnected($con, $uid, $targetUserId) : false;
-$photos    = json_decode($data['images'] ?? '[]', true);
+$photos    = $type === 'listing' ? json_decode($data['images'] ?? '[]', true) : [];
 ?>
 <!DOCTYPE html>
 <html lang="en" class="no-js">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<?php include __DIR__ . '/includes/head.php'; ?>
     <title><?= esc($data['title'] ?? ($data['FullName'].' – Roommate')) ?> – UrbanNest</title>
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-    <link rel="stylesheet" href="css/linearicons.css">
-    <link rel="stylesheet" href="css/font-awesome.min.css">
-    <link rel="stylesheet" href="css/bootstrap.css">
-    <link rel="stylesheet" href="css/main.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .detail-hero { background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%); padding: 50px 0 30px; color:#fff; }
         .detail-card { border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.10); border: none; padding: 30px; margin-bottom: 24px; }
@@ -132,7 +133,7 @@ $photos    = json_decode($data['images'] ?? '[]', true);
                         <dt class="col-sm-4">Available From</dt><dd class="col-sm-8"><?= fmtDate($data['available_from']) ?></dd>
                         <dt class="col-sm-4">Furnishing</dt><dd class="col-sm-8"><?= esc($data['furnished']) ?></dd>
                         <dt class="col-sm-4">Gender Preferred</dt><dd class="col-sm-8"><?= esc($data['gender_preference']) ?></dd>
-                        <dt class="col-sm-4">Age Range</dt><dd class="col-sm-8"><?= $data['preferred_age_min'] ?> – <?= $data['preferred_age_max'] ?> years</dd>
+                        <dt class="col-sm-4">Age Range</dt><dd class="col-sm-8"><?= (int)$data['preferred_age_min'] ?> – <?= (int)$data['preferred_age_max'] ?> years</dd>
                         <?php if ($data['lifestyle_prefs']): ?>
                         <dt class="col-sm-4">Lifestyle Prefs</dt><dd class="col-sm-8"><?= esc($data['lifestyle_prefs']) ?></dd>
                         <?php endif; ?>
@@ -168,7 +169,7 @@ $photos    = json_decode($data['images'] ?? '[]', true);
                         <dt class="col-sm-4">Drinking</dt><dd class="col-sm-8"><?= esc($data['drinking'] ?? 'N/A') ?></dd>
                         <dt class="col-sm-4">Work/Study</dt><dd class="col-sm-8"><?= esc($data['work_study_status'] ?? 'N/A') ?></dd>
                     </dl>
-                    <?php if ($data['additional_requirements']): ?>
+                    <?php if (!empty($data['additional_requirements'])): ?>
                     <h5 class="mt-3 mb-2">Additional Requirements</h5>
                     <p class="text-muted"><?= nl2br(esc($data['additional_requirements'])) ?></p>
                     <?php endif; ?>
@@ -184,7 +185,7 @@ $photos    = json_decode($data['images'] ?? '[]', true);
                         <div>
                             <h5 class="mb-1"><?= esc($ownerProfile['FullName'] ?? $data['FullName']) ?></h5>
                             <p class="text-muted mb-2">
-                                <?= $ownerProfile['age'] ? $ownerProfile['age'].' yrs • ' : '' ?>
+                                <?= $ownerProfile['age'] ? (int)$ownerProfile['age'].' yrs • ' : '' ?>
                                 <?= esc($ownerProfile['gender'] ?? '') ?>
                                 <?= $ownerProfile['occupation'] ? ' • '.esc($ownerProfile['occupation']) : '' ?>
                             </p>
@@ -212,8 +213,7 @@ $photos    = json_decode($data['images'] ?? '[]', true);
                                 <i class="fa fa-check-circle text-success" style="font-size:2.5rem;"></i>
                                 <p class="fw-bold mt-2 text-success">You are Connected!</p>
                             </div>
-                            <?php $convId = getOrCreateConversation($con, $uid, $targetUserId); ?>
-                            <a href="chat.php?user=<?= $targetUserId ?>" class="btn btn-success action-btn w-100 mb-2">
+                            <a href="chat.php?user=<?= (int)$targetUserId ?>" class="btn btn-success action-btn w-100 mb-2">
                                 <i class="fa fa-comment me-2"></i>Send Message
                             </a>
                         <?php elseif ($reqStatus && $reqStatus['status'] === 'Pending'): ?>
@@ -222,15 +222,15 @@ $photos    = json_decode($data['images'] ?? '[]', true);
                                 <p class="fw-bold mt-2 text-warning">Request Pending</p>
                             </div>
                             <?php if ($reqStatus['sender_id'] == $uid): ?>
-                            <a href="cancel-request.php?id=<?= $reqStatus['id'] ?>" class="btn btn-outline-secondary action-btn w-100">Cancel Request</a>
+                            <a href="cancel-request.php?id=<?= (int)$reqStatus['id'] ?>&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-outline-secondary action-btn w-100">Cancel Request</a>
                             <?php else: ?>
-                            <a href="respond-request.php?id=<?= $reqStatus['id'] ?>&action=accept" class="btn btn-success action-btn w-100 mb-2">Accept</a>
-                            <a href="respond-request.php?id=<?= $reqStatus['id'] ?>&action=reject" class="btn btn-outline-danger action-btn w-100">Decline</a>
+                            <a href="respond-request.php?id=<?= (int)$reqStatus['id'] ?>&action=accept&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-success action-btn w-100 mb-2">Accept</a>
+                            <a href="respond-request.php?id=<?= (int)$reqStatus['id'] ?>&action=reject&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-outline-danger action-btn w-100">Decline</a>
                             <?php endif; ?>
                         <?php elseif ($reqStatus): ?>
                             <span class="badge bg-secondary p-3 mb-3"><?= esc($reqStatus['status']) ?></span>
                         <?php else: ?>
-                        <a href="send-request.php?to=<?= $targetUserId ?><?= isset($data['id']) && $type==='listing' ? '&listing='.$data['id'] : '' ?>" class="btn btn-danger action-btn w-100 mb-2">
+                        <a href="send-request.php?to=<?= (int)$targetUserId ?><?= isset($data['id']) && $type==='listing' ? '&listing='.(int)$data['id'] : '' ?>&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-danger action-btn w-100 mb-2">
                             <i class="fa fa-user-plus me-2"></i>Connect
                         </a>
                         <?php endif; ?>
@@ -278,7 +278,5 @@ $photos    = json_decode($data['images'] ?? '[]', true);
 </section>
 
 <?php include_once('includes/footer.php'); ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/vendor/jquery-2.2.4.min.js"></script>
 </body>
 </html>

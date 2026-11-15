@@ -1,16 +1,39 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
+require_once __DIR__ . '/../includes/security.php';
+include('includes/dbconnection.php');
 
+if (current_owner_id() > 0) {
+  redirect_to('dashboard.php');
+}
+
+$msg = isset($_GET['registered']) ? "Registration successful. Your account is awaiting admin approval." : '';
 if (isset($_POST['login'])) {
-  $owemail = $_POST['email'];
-  $password = md5($_POST['password']);
-  $query = mysqli_query($con, "select ID from tblowner where  Email='$owemail' && Password='$password' ");
-  $ret = mysqli_fetch_array($query);
-  if ($ret > 0) {
-    $_SESSION['pgasoid'] = $ret['ID'];
-    header('location:dashboard.php');
+  $owemail = trim((string) ($_POST['email'] ?? ''));
+  $password = (string) ($_POST['password'] ?? '');
+
+  $stmt = mysqli_prepare($con, "SELECT ID, Password, status FROM tblowner WHERE Email = ? LIMIT 1");
+  mysqli_stmt_bind_param($stmt, 's', $owemail);
+  mysqli_stmt_execute($stmt);
+  $ret = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+  mysqli_stmt_close($stmt);
+
+  $needsRehash = false;
+  if ($ret && verify_password($password, $ret['Password'], $needsRehash)) {
+    $ownerId = (int) $ret['ID'];
+    if ($needsRehash) {
+      $newHash = hash_password($password);
+      $up = mysqli_prepare($con, "UPDATE tblowner SET Password = ? WHERE ID = ?");
+      mysqli_stmt_bind_param($up, 'si', $newHash, $ownerId);
+      mysqli_stmt_execute($up);
+      mysqli_stmt_close($up);
+    }
+    if ((int) $ret['status'] !== 1) {
+      $msg = "Your account is awaiting admin approval";
+    } else {
+      session_regenerate_id(true);
+      $_SESSION['pgasoid'] = $ownerId;
+      redirect_to('dashboard.php');
+    }
   } else {
     $msg = "Invalid Details.";
   }
@@ -32,6 +55,9 @@ if (isset($_POST['login'])) {
   <link rel="stylesheet" href="css/font.css" type="text/css" />
   <link href="css/font-awesome.css" rel="stylesheet">
   <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 
 <body>
@@ -42,9 +68,7 @@ if (isset($_POST['login'])) {
       <h3 align="center">Sign In Now</h3>
       <hr />
       <form action="#" method="post" name="login">
-        <p style="font-size:16px; color:red" align="center"> <?php if ($msg) {
-          echo $msg;
-        } ?> </p>
+        <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>
         <input type="email" class="ggg" name="email" placeholder="E-MAIL" required="true">
         <input type="password" class="ggg" name="password" placeholder="PASSWORD" required="true">
 

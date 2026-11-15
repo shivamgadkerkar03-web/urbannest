@@ -1,10 +1,8 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
-if (strlen($_SESSION['pgasoid'] == 0)) {
-  header('location:logout.php');
-} else {
+require_once __DIR__ . '/../includes/security.php';
+include('includes/dbconnection.php');
+$ownerid = require_owner('login.php');
+
 
   ?>
 
@@ -17,6 +15,7 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
     <script
       type="application/x-javascript"> addEventListener("load", function() { setTimeout(hideURLbar, 0); }, false); function hideURLbar(){ window.scrollTo(0,1); } </script>
     <!-- bootstrap-css -->
+    <meta name="csrf-token" content="<?php echo h(csrf_token()); ?>">
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <!-- //bootstrap-css -->
     <!-- Custom CSS -->
@@ -31,7 +30,10 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
     <link href="css/font-awesome.css" rel="stylesheet">
     <!-- //font-awesome icons -->
     <script src="js/jquery2.0.3.min.js"></script>
-  </head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
+</head>
 
   <body>
     <section id="container">
@@ -76,23 +78,23 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
                   </thead>
                   <tbody id="allStu">
                     <?php
-                    $oid = $_SESSION['pgasoid'];
-                    $ret = mysqli_query($con, "select tblbookpg.Userid,tblbookpg.Pgid,tblbookpg.ID,tblbookpg.BookingNumber,tblbookpg.CheckinDate,tblbookpg.BookingDate,tblpg.PGTitle,tbluser.FullName from  tblbookpg join tblpg on tblpg.ID=tblbookpg.Pgid join tbluser on tbluser.ID=tblbookpg.Userid where tblpg.OwnerID='$oid' ");
+                    $ret = mysqli_query($con, "select tblbookpg.Userid,tblbookpg.Pgid,tblbookpg.Status,tblbookpg.ID,tblbookpg.BookingNumber,tblbookpg.CheckinDate,tblbookpg.BookingDate,tblpg.PGTitle,tbluser.FullName from  tblbookpg join tblpg on tblpg.ID=tblbookpg.Pgid join tbluser on tbluser.ID=tblbookpg.Userid where tblpg.OwnerID=" . (int) $ownerid);
                     $cnt = 1;
                     while ($row = mysqli_fetch_array($ret)) {
 
                       ?>
                       <tr data-expanded="true">
                         <td><?php echo $cnt; ?></td>
-                        <td><?php echo $row['FullName']; ?></td>
-                        <td><?php echo $row['BookingNumber']; ?></td>
-                        <td><?php echo $row['PGTitle']; ?></td>
-                        <td><?php echo $row['CheckinDate']; ?></td>
-                        <td><?php echo $row['BookingDate']; ?></td>
-                        <td><a href="view-requestdetails.php?viewid=<?php echo $row['ID']; ?>" class="btn btn-primary">View
+                        <td><?php echo h($row['FullName']); ?></td>
+                        <td><?php echo h($row['BookingNumber']); ?></td>
+                        <td><?php echo h($row['PGTitle']); ?></td>
+                        <td><?php echo h($row['CheckinDate']); ?></td>
+                        <td><?php echo h($row['BookingDate']); ?></td>
+                        <td><a href="view-requestdetails.php?viewid=<?php echo h($row['ID']); ?>" class="btn btn-primary">View
                             Details</a>
-                          <a action="del" uId="<?php echo $row['Userid']; ?>" pgId="<?php echo $row['Pgid']; ?>"
-                            class="btn btn-danger">Delete</a>
+                          <?php if ($row['Status'] !== 'Cancelled') { ?>
+                          <a href="javascript:;" class="btn btn-danger js-cancel-booking" data-id="<?php echo (int) $row['ID']; ?>">Cancel</a>
+                          <?php } ?>
                       </tr>
                       <?php
                       $cnt = $cnt + 1;
@@ -107,31 +109,31 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
           </div>
           <script>
             document.getElementById("allStu").addEventListener('click', (event) => {
-              if (event.target.getAttribute("action") == "del") {
-                // console.log(event.target.getAttribute("uid"));
-                // console.log(event.target.getAttribute("pgid"));
-                // const id = 'some_id_value'; // Replace 'some_id_value' with the actual ID value
-                console.log({ uid: event.target.getAttribute("uid"), pgid: event.target.getAttribute("pgid") });
-
-                fetch('./php/delet.php', {
-                  method: 'POST',
-                  body: JSON.stringify({ uid: event.target.getAttribute("uid"), pgid: event.target.getAttribute("pgid") })
-                })
-                  .then(response => {
-                    if (response.ok) {
-                      return response.text(); 
-                    }
-                    throw new Error('Network response was not ok.');
-                  })
-                  .then(text => {
-                    alert(text); 
-                    location.reload();
-                  })
-                  .catch(error => {
-                    console.error('Error:', error);
-                  });
+              const btn = event.target.closest('.js-cancel-booking');
+              if (!btn) {
+                return;
               }
-            })
+              event.preventDefault();
+              if (!confirm('Do you really want to cancel this booking?')) {
+                return;
+              }
+              const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+              fetch('./php/delet.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+                body: JSON.stringify({ bookingId: btn.dataset.id })
+              })
+                .then(response => response.json())
+                .then(data => {
+                  alert(data.message || (data.success ? 'Booking cancelled.' : 'Could not cancel the booking.'));
+                  if (data.success) {
+                    location.reload();
+                  }
+                })
+                .catch(() => {
+                  alert('Could not cancel the booking. Please try again.');
+                });
+            });
           </script>
         </section>
         <!-- footer -->
@@ -150,4 +152,3 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
   </body>
 
   </html>
-<?php } ?>

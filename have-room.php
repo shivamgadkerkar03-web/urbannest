@@ -1,47 +1,60 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
 include_once('includes/roommate-functions.php');
 
-// Auth check
-if (empty($_SESSION['pgasuid'])) {
-    header('location: signin.php');
-    exit;
-}
-$uid = (int)$_SESSION['pgasuid'];
+$uid = require_user('signin.php');
 $msg = '';
 $msgType = 'success';
 
+$amenityOptions = ['Wi-Fi','AC','Kitchen','Washing Machine','Parking','Refrigerator','Water Purifier','Power Backup','CCTV','Housekeeping','TV','Geyser'];
+
+function pick_option($value, array $allowed, $default) {
+    return in_array($value, $allowed, true) ? $value : $default;
+}
+
 // Handle form submission
 if (isset($_POST['submit_listing'])) {
-    $title      = trim($_POST['title'] ?? '');
-    $city       = trim($_POST['city'] ?? '');
-    $locality   = trim($_POST['locality'] ?? '');
+    csrf_check();
+    $title      = mb_substr(trim($_POST['title'] ?? ''), 0, 255);
+    $city       = mb_substr(trim($_POST['city'] ?? ''), 0, 100);
+    $locality   = mb_substr(trim($_POST['locality'] ?? ''), 0, 200);
     $address    = trim($_POST['full_address'] ?? '');
-    $rent       = (int)($_POST['monthly_rent'] ?? 0);
-    $deposit    = (int)($_POST['security_deposit'] ?? 0);
-    $room_type  = trim($_POST['room_type'] ?? 'Single');
-    $spaces     = (int)($_POST['available_spaces'] ?? 1);
-    $acc_type   = trim($_POST['accommodation_type'] ?? 'PG');
+    $rent       = max(0, (int)($_POST['monthly_rent'] ?? 0));
+    $deposit    = max(0, (int)($_POST['security_deposit'] ?? 0));
+    $room_type  = pick_option(trim($_POST['room_type'] ?? ''), ['Single','Double','Shared'], 'Single');
+    $spaces     = min(20, max(1, (int)($_POST['available_spaces'] ?? 1)));
+    $acc_type   = pick_option(trim($_POST['accommodation_type'] ?? ''), ['PG','Flat','Apartment','Hostel'], 'PG');
     $avail_from = trim($_POST['available_from'] ?? '');
-    $furnished  = trim($_POST['furnished'] ?? 'Unfurnished');
-    $amenities  = isset($_POST['amenities']) ? json_encode($_POST['amenities']) : '[]';
-    $gender_pref = trim($_POST['gender_preference'] ?? 'Any');
-    $age_min    = (int)($_POST['preferred_age_min'] ?? 18);
-    $age_max    = (int)($_POST['preferred_age_max'] ?? 45);
+    $furnished  = pick_option(trim($_POST['furnished'] ?? ''), ['Fully Furnished','Semi-Furnished','Unfurnished'], 'Unfurnished');
+    $postedAmenities = isset($_POST['amenities']) && is_array($_POST['amenities']) ? $_POST['amenities'] : [];
+    $amenities  = json_encode(array_values(array_intersect($amenityOptions, $postedAmenities)));
+    $gender_pref = pick_option(trim($_POST['gender_preference'] ?? ''), ['Male','Female','Any'], 'Any');
+    $age_min    = min(80, max(16, (int)($_POST['preferred_age_min'] ?? 18)));
+    $age_max    = min(80, max(16, (int)($_POST['preferred_age_max'] ?? 45)));
+    if ($age_min > $age_max) {
+        [$age_min, $age_max] = [$age_max, $age_min];
+    }
     $lifestyle  = trim($_POST['lifestyle_prefs'] ?? '');
     $description = trim($_POST['description'] ?? '');
+
+    $availDate = $avail_from !== '' ? DateTime::createFromFormat('!Y-m-d', $avail_from) : null;
+    $dateValid = $avail_from === '' || ($availDate && $availDate->format('Y-m-d') === $avail_from);
+    $avail_from = ($avail_from !== '' && $dateValid) ? $avail_from : null;
 
     // Validation
     if (!$title || !$city || !$rent) {
         $msg = 'Please fill in Title, City, and Monthly Rent.';
         $msgType = 'danger';
+    } elseif (!$dateValid) {
+        $msg = 'Please enter a valid "Available From" date.';
+        $msgType = 'danger';
     } else {
-        // Handle image uploads
+        // Handle image uploads (max 6)
         $imageArr = [];
-        if (!empty($_FILES['images']['name'][0])) {
+        if (!empty($_FILES['images']['name'][0]) && is_array($_FILES['images']['name'])) {
             foreach($_FILES['images']['name'] as $k => $name) {
+                if (count($imageArr) >= 6) break;
                 if (!empty($name)) {
                     $file = [
                         'name'     => $_FILES['images']['name'][$k],
@@ -61,16 +74,16 @@ if (isset($_POST['submit_listing'])) {
             "INSERT INTO roommate_listings (user_id,title,city,locality,full_address,monthly_rent,security_deposit,room_type,available_spaces,accommodation_type,available_from,furnished,amenities,gender_preference,preferred_age_min,preferred_age_max,lifestyle_prefs,description,images) 
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
         );
-        mysqli_stmt_bind_param($stmt, 'issssiisisssssiiiss',
+        mysqli_stmt_bind_param($stmt, 'issssiisisssssiisss',
             $uid, $title, $city, $locality, $address, $rent, $deposit, $room_type, $spaces,
             $acc_type, $avail_from, $furnished, $amenities, $gender_pref,
             $age_min, $age_max, $lifestyle, $description, $images_json
         );
 
         if (mysqli_stmt_execute($stmt)) {
-            header('location: my-matches.php?success=listing');
-            exit;
+            redirect_to('my-matches.php?success=listing');
         } else {
+            error_log('Roommate listing insert failed: ' . mysqli_error($con));
             $msg = 'Something went wrong. Please try again.';
             $msgType = 'danger';
         }
@@ -80,16 +93,9 @@ if (isset($_POST['submit_listing'])) {
 <!DOCTYPE html>
 <html lang="en" class="no-js">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<?php include __DIR__ . '/includes/head.php'; ?>
     <title>I Have a Room – UrbanNest</title>
     <meta name="description" content="Post your room, flat, or PG listing on UrbanNest to find a perfect roommate.">
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-    <link rel="stylesheet" href="css/linearicons.css">
-    <link rel="stylesheet" href="css/font-awesome.min.css">
-    <link rel="stylesheet" href="css/bootstrap.css">
-    <link rel="stylesheet" href="css/main.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .page-hero { background: linear-gradient(135deg, #c0392b, #ff3333); padding: 60px 0 40px; color: #fff; text-align: center; }
         .form-section { background: #fff; border-radius: 16px; padding: 36px; box-shadow: 0 4px 24px rgba(0,0,0,.09); margin-bottom: 30px; }
@@ -116,13 +122,14 @@ if (isset($_POST['submit_listing'])) {
 <section class="section-gap">
     <div class="container" style="max-width:800px;">
         <?php if ($msg): ?>
-        <div class="alert alert-<?= $msgType ?> alert-dismissible fade show rounded-3" role="alert">
+        <div class="alert alert-<?= esc($msgType) ?> alert-dismissible fade show rounded-3" role="alert">
             <?= esc($msg) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data" novalidate>
+            <?= csrf_field() ?>
 
             <!-- Basic Info -->
             <div class="form-section">
@@ -198,7 +205,7 @@ if (isset($_POST['submit_listing'])) {
             <div class="form-section">
                 <h4>Amenities</h4>
                 <div class="d-flex flex-wrap gap-2">
-                    <?php foreach(['Wi-Fi','AC','Kitchen','Washing Machine','Parking','Refrigerator','Water Purifier','Power Backup','CCTV','Housekeeping','TV','Geyser'] as $a): ?>
+                    <?php foreach($amenityOptions as $a): ?>
                     <div class="amenity-check">
                         <input type="checkbox" name="amenities[]" id="am_<?= str_replace(' ','_',$a) ?>" value="<?= $a ?>">
                         <label for="am_<?= str_replace(' ','_',$a) ?>">
@@ -258,8 +265,6 @@ if (isset($_POST['submit_listing'])) {
 
 <?php include_once('includes/footer.php'); ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/vendor/jquery-2.2.4.min.js"></script>
 <script>
 // Image preview
 document.getElementById('imageUpload').addEventListener('change', function(e) {

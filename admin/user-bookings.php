@@ -1,10 +1,19 @@
 <?php  
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  } else{
+
+$uid = (int) ($_GET['uid'] ?? 0);
+$uname = '';
+$stmt = mysqli_prepare($con, "SELECT FullName FROM tbluser WHERE ID = ?");
+mysqli_stmt_bind_param($stmt, 'i', $uid);
+mysqli_stmt_execute($stmt);
+$urow = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
+if ($urow) {
+    $uname = (string) $urow['FullName'];
+}
+
 
 ?>
 
@@ -27,6 +36,9 @@ if (strlen($_SESSION['pgasaid']==0)) {
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -42,7 +54,7 @@ if (strlen($_SESSION['pgasaid']==0)) {
 		<div class="table-agile-info">
  <div class="panel panel-default">
     <div class="panel-heading">
-<?php echo $_GET['uname'];?>'s Bookings
+<?php echo h($uname); ?>'s Bookings
     </div>
     <div>
       <table class="table" ui-jq="footable" ui-options='{
@@ -70,8 +82,7 @@ if (strlen($_SESSION['pgasaid']==0)) {
           </tr>
         </thead>
         <?php
-        $uid=$_GET['uid'];
-$ret=mysqli_query($con,"select tblbookpg.ID,tblbookpg.BookingNumber,tblbookpg.CheckinDate,tblbookpg.BookingDate,tblpg.PGTitle,tbluser.FullName from  tblbookpg join tblpg on tblpg.ID=tblbookpg.Pgid join tbluser on tbluser.ID=tblbookpg.Userid where tbluser.ID='$uid' ");
+$ret=mysqli_query($con,"select tblbookpg.ID,tblbookpg.BookingNumber,tblbookpg.CheckinDate,tblbookpg.BookingDate,tblpg.PGTitle,tbluser.FullName from  tblbookpg join tblpg on tblpg.ID=tblbookpg.Pgid join tbluser on tbluser.ID=tblbookpg.Userid where tbluser.ID=" . $uid);
 $cnt=1;
 while ($row=mysqli_fetch_array($ret)) {
 
@@ -79,12 +90,12 @@ while ($row=mysqli_fetch_array($ret)) {
         <tbody>
           <tr data-expanded="true">
             <td><?php echo $cnt;?></td>
-              <td><?php  echo $row['FullName'];?></td>
-                  <td><?php  echo $row['BookingNumber'];?></td>
-                  <td><?php  echo $row['PGTitle'];?></td>
-                  <td><?php  echo $row['CheckinDate'];?></td>
-                  <td><?php  echo $row['BookingDate'];?></td>
-                  <td><a href="booking-details.php?viewid=<?php echo $row['ID'];?>" class="btn btn-primary">View Details</a>
+              <td><?php echo h($row['FullName']); ?></td>
+                  <td><?php echo h($row['BookingNumber']); ?></td>
+                  <td><?php echo h($row['PGTitle']); ?></td>
+                  <td><?php echo h($row['CheckinDate']); ?></td>
+                  <td><?php echo h($row['BookingDate']); ?></td>
+                  <td><a href="booking-details.php?viewid=<?php echo h($row['ID']); ?>" class="btn btn-primary">View Details</a>
                 </tr>
                 <?php 
 $cnt=$cnt+1;
@@ -114,4 +125,3 @@ $cnt=$cnt+1;
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

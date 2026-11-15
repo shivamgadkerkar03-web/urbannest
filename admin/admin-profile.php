@@ -1,26 +1,28 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  } else{
-    if(isset($_POST['submit']))
-  {
-    $adminid=$_SESSION['pgasaid'];
-    $aname=$_POST['adminname'];
-  $mobno=$_POST['contactnumber'];
-  
-     $query=mysqli_query($con, "update tbladmin set AdminName ='$aname', MobileNumber='$mobno' where ID='$adminid'");
-    if ($query) {
-    $msg="Admin profile has been updated.";
-  }
-  else
-    {
-      $msg="Something Went Wrong. Please try again.";
+
+$msg = '';
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $aname = trim((string) ($_POST['adminname'] ?? ''));
+    $mobno = trim((string) ($_POST['contactnumber'] ?? ''));
+
+    if (!preg_match('/^[0-9]{10}$/', $mobno)) {
+        $msg = "Please enter a valid 10 digit mobile number.";
+    } else {
+        $stmt = mysqli_prepare($con, "UPDATE tbladmin SET AdminName = ?, MobileNumber = ? WHERE ID = ?");
+        mysqli_stmt_bind_param($stmt, 'ssi', $aname, $mobno, $adminid);
+        if (mysqli_stmt_execute($stmt)) {
+            $msg = "Admin profile has been updated.";
+        } else {
+            $msg = "Something Went Wrong. Please try again.";
+        }
+        mysqli_stmt_close($stmt);
     }
-  }
-  ?>
+}
+?>
 
 <!DOCTYPE html>
 <head>
@@ -40,6 +42,9 @@ if (strlen($_SESSION['pgasaid']==0)) {
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -69,41 +74,39 @@ if (strlen($_SESSION['pgasaid']==0)) {
                         </header>
                         <div class="panel-body">
                             <div class="form">
-                                 <p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
+                                 <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>
 
    <?php
-$adminid=$_SESSION['pgasaid'];
-$ret=mysqli_query($con,"select * from tbladmin where ID='$adminid'");
+$ret=mysqli_query($con,"select * from tbladmin where ID=" . (int) $adminid);
 $cnt=1;
 while ($row=mysqli_fetch_array($ret)) {
 
 ?>
                                 <form class="cmxform form-horizontal " method="post" action="">
+                                    <?php echo csrf_field(); ?>
                                     <div class="form-group ">
                                         <label for="adminname" class="control-label col-lg-3">Admin Name</label>
                                         <div class="col-lg-6">
-                                            <input class=" form-control" id="adminname" name="adminname" type="text" value="<?php  echo $row['AdminName'];?>">
+                                            <input class=" form-control" id="adminname" name="adminname" type="text" value="<?php echo h($row['AdminName']); ?>">
                                         </div>
                                     </div>
                                     <div class="form-group ">
                                         <label for="lastname" class="control-label col-lg-3">User Name</label>
                                         <div class="col-lg-6">
-                                            <input class=" form-control" id="username" name="username" type="text" value="<?php  echo $row['UserName'];?>" required="true" readonly='true'>
+                                            <input class=" form-control" id="username" name="username" type="text" value="<?php echo h($row['UserName']); ?>" required="true" readonly='true'>
                                         </div>
                                     </div>
                                     <div class="form-group ">
                                         <label for="username" class="control-label col-lg-3">Contact Number</label>
                                         <div class="col-lg-6">
-                                            <input class="form-control " id="contactnumber" name="contactnumber" type="text" value="<?php  echo $row['MobileNumber'];?>" required="true">
+                                            <input class="form-control " id="contactnumber" name="contactnumber" type="text" value="<?php echo h($row['MobileNumber']); ?>" required="true">
                                         </div>
                                     </div>
                                    
                                     <div class="form-group ">
                                         <label for="email" class="control-label col-lg-3">Email</label>
                                         <div class="col-lg-6">
-                                            <input class="form-control " id="email" name="email" type="email" value="<?php  echo $row['Email'];?>" required="true" readonly='true'>
+                                            <input class="form-control " id="email" name="email" type="email" value="<?php echo h($row['Email']); ?>" required="true" readonly='true'>
                                         </div>
                                     </div>
                                     <?php } ?>
@@ -144,4 +147,3 @@ while ($row=mysqli_fetch_array($ret)) {
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

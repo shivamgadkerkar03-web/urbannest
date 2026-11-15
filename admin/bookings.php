@@ -1,10 +1,8 @@
 <?php  
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  } else{
+
 
 ?>
 
@@ -27,6 +25,9 @@ if (strlen($_SESSION['pgasaid']==0)) {
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -70,7 +71,6 @@ if (strlen($_SESSION['pgasaid']==0)) {
           </tr>
         </thead>
         <?php
-        $oid=$_SESSION['pgasoid'];
 $ret=mysqli_query($con,"select tblbookpg.ID,tblbookpg.BookingNumber,tblbookpg.CheckinDate,tblbookpg.BookingDate,tblpg.PGTitle,tbluser.FullName from  tblbookpg join tblpg on tblpg.ID=tblbookpg.Pgid join tbluser on tbluser.ID=tblbookpg.Userid ");
 $cnt=1;
 while ($row=mysqli_fetch_array($ret)) {
@@ -79,12 +79,12 @@ while ($row=mysqli_fetch_array($ret)) {
         <tbody>
           <tr data-expanded="true">
             <td><?php echo $cnt;?></td>
-              <td><?php  echo $row['FullName'];?></td>
-                  <td><?php  echo $row['BookingNumber'];?></td>
-                  <td><?php  echo $row['PGTitle'];?></td>
-                  <td><?php  echo $row['CheckinDate'];?></td>
-                  <td><?php  echo $row['BookingDate'];?></td>
-                  <td><a href="booking-details.php?viewid=<?php echo $row['ID'];?>" class="btn btn-primary" target="blank">View Details</a>
+              <td><?php echo h($row['FullName']); ?></td>
+                  <td><?php echo h($row['BookingNumber']); ?></td>
+                  <td><?php echo h($row['PGTitle']); ?></td>
+                  <td><?php echo h($row['CheckinDate']); ?></td>
+                  <td><?php echo h($row['BookingDate']); ?></td>
+                  <td><a href="booking-details.php?viewid=<?php echo h($row['ID']); ?>" class="btn btn-primary" target="blank">View Details</a>
                 </tr>
                 <?php 
 $cnt=$cnt+1;
@@ -114,4 +114,3 @@ $cnt=$cnt+1;
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

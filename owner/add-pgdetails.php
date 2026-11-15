@@ -1,60 +1,75 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
-if (strlen($_SESSION['pgasoid'] == 0)) {
-    header('location:logout.php');
-} else {
+require_once __DIR__ . '/../includes/security.php';
+include('includes/dbconnection.php');
+$ownerid = require_owner('login.php');
 
-    if (isset($_POST['submit'])) {
-        $ownerid = $_SESSION['pgasoid'];
-        $statename = $_POST['state'];
-        $cityname = $_POST['city'];
 
-        $pgname = $_POST['pgname'];
-        $typepg = $_POST['typepg'];
-        $rpmonth = $_POST['rpmonth'];
-        $norooms = $_POST['norooms'];
-        $address = $_POST['address'];
-        $roomimages = $_POST['roomimages'];
-        $electricity = $_POST['electricity'];
+$msg = '';
+if (isset($_POST['submit'])) {
+    csrf_check();
 
-        $parking = $_POST['parking'];
-        $ref = $_POST['refregerator'];
-        $furnished = $_POST['furnished'];
-        $ac = $_POST['ac'];
-        $balcony = $_POST['balcony'];
-        $table = $_POST['table'];
-        $laundry = $_POST['laundry'];
-        $security = $_POST['security'];
-        $breakfast = $_POST['breakfast'];
-        $lunch = $_POST['lunch'];
-        $dinner = $_POST['dinner'];
+    $ownerStatus = mysqli_fetch_assoc(mysqli_query($con, "SELECT status FROM tblowner WHERE ID=" . (int) $ownerid));
+    $fields = [
+        'state' => '', 'city' => '', 'pgname' => '', 'typepg' => '', 'rpmonth' => '', 'norooms' => '',
+        'address' => '', 'electricity' => '', 'parking' => '', 'refregerator' => '', 'furnished' => '',
+        'ac' => '', 'balcony' => '', 'table' => '', 'laundry' => '', 'security' => '',
+        'breakfast' => '', 'lunch' => '', 'dinner' => '',
+    ];
+    foreach ($fields as $key => $default) {
+        $fields[$key] = trim((string) ($_POST[$key] ?? $default));
+    }
 
-        $pgpic = $_FILES["roomimages"]["name"];
-        $extension = substr($pgpic, strlen($pgpic) - 4, strlen($pgpic));
-
-        // allowed extensions
-        $allowed_extensions = array(".jpg", "jpeg", ".png", ".gif");
-        // Validation for allowed extensions .in_array() function searches an array for a specific value.
-        if (!in_array($extension, $allowed_extensions)) {
-            echo "<script>alert('Invalid format. Only jpg / jpeg/ png /gif format allowed');</script>";
+    if (!$ownerStatus || (int) $ownerStatus['status'] !== 1) {
+        $msg = "Your account is awaiting admin approval.";
+    } elseif ($fields['pgname'] === '' || $fields['state'] === '' || $fields['city'] === '') {
+        $msg = "Please fill in all required fields.";
+    } else {
+        $imageDir = __DIR__ . '/roomimages';
+        $upload = store_uploaded_image($_FILES['roomimages'] ?? [], $imageDir);
+        protect_upload_dir($imageDir);
+        if (!$upload['ok']) {
+            $msg = $upload['error'];
         } else {
-            //r
-            $roompic = md5($pgpic) . $extension;
-            move_uploaded_file($_FILES["roomimages"]["tmp_name"], "roomimages/" . $roompic);
-            $query = mysqli_query($con, "insert into tblpg(OwnerID,StateName, CityName, PGTitle, Type, RPmonth,norooms,Address,Electricity,Parking,Refregerator,Furnished,AC,Balcony,StudyTable,Laundry,Security,MealsBreakfast,MealLunch,MealDinner,Image) value('$ownerid','$statename','$cityname','$pgname','$typepg','$rpmonth','$norooms','$address','$electricity','$parking','$ref','$furnished','$ac','$balcony','$table','$laundry','$security','$breakfast','$lunch','$dinner','$roompic')");
-            if ($query) {
-                echo "<script>alert('PG details has been submitted.');</script>";
+            $roompic = $upload['name'];
+            // New listings stay hidden until an admin approves them.
+            $stmt = mysqli_prepare($con, "INSERT INTO tblpg(OwnerID, StateName, CityName, PGTitle, Type, RPmonth, norooms, Address, Electricity, Parking, Refregerator, Furnished, AC, Balcony, StudyTable, Laundry, Security, MealsBreakfast, MealLunch, MealDinner, Image, IsActive) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
+            mysqli_stmt_bind_param(
+                $stmt,
+                'issssssssssssssssssss',
+                $ownerid,
+                $fields['state'],
+                $fields['city'],
+                $fields['pgname'],
+                $fields['typepg'],
+                $fields['rpmonth'],
+                $fields['norooms'],
+                $fields['address'],
+                $fields['electricity'],
+                $fields['parking'],
+                $fields['refregerator'],
+                $fields['furnished'],
+                $fields['ac'],
+                $fields['balcony'],
+                $fields['table'],
+                $fields['laundry'],
+                $fields['security'],
+                $fields['breakfast'],
+                $fields['lunch'],
+                $fields['dinner'],
+                $roompic
+            );
+            if (mysqli_stmt_execute($stmt)) {
+                echo "<script>alert('PG details has been submitted and will be visible after admin approval.');</script>";
                 echo "<script>window.location.href='manage-pgdetails.php'</script>";
-            } else {
-                echo "<script>alert('PG details has been submitted.');</script>";
-                echo "<script>window.location.href='add-pgdetails.php'</script>";
+                exit;
             }
-
+            mysqli_stmt_close($stmt);
+            @unlink($imageDir . '/' . $roompic);
+            $msg = "Something went wrong. Please try again.";
         }
     }
-    ?>
+}
+?>
     <!DOCTYPE html>
 
     <head>
@@ -82,7 +97,7 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
                 $.ajax({
                     type: "POST",
                     url: "get-city.php",
-                    data: 'sateid=' + val,
+                    data: { sateid: val },
                     success: function (data) {
                         $("#city").html(data);
                     }
@@ -90,7 +105,10 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
             }
         </script>
 
-    </head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
+</head>
 
     <body>
         <section id="container">
@@ -109,9 +127,8 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
                             <div class="col-lg-12">
                                 <section class="panel">
                                     <?php
-                                    if (isset($_SESSION['pgasoid'])) {
-                                        // Prepare the SQL query with a condition for status
-                                        $query = "SELECT * FROM tblowner WHERE ID=" . $_SESSION['pgasoid'] . "";
+                                    if ($ownerid > 0) {
+                                        $query = "SELECT * FROM tblowner WHERE ID=" . (int) $ownerid;
 
                                         // Execute the query
                                         $result = mysqli_query($con, $query);
@@ -132,11 +149,10 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
                                                     List Your PG
                                                 </header>
                                                 <div class="panel-body">
-                                                    <p style="font-size:16px; color:red" align="left"> <?php if ($msg) {
-                                                        echo $msg;
-                                                    } ?> </p>
+                                                    <p style="font-size:16px; color:red" align="left"> <?php echo h($msg ?? ''); ?> </p>
                                                     <form class="form-horizontal bucket-form" method="post"
                                                         enctype="multipart/form-data">
+                                                        <?php echo csrf_field(); ?>
                                                         <div class="form-group">
                                                             <label class="col-sm-3 control-label">PG Name</label>
                                                             <div class="col-sm-6">
@@ -167,8 +183,8 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
                                                                     <?php $query = mysqli_query($con, "select * from tblstate");
                                                                     while ($row = mysqli_fetch_array($query)) {
                                                                         ?>
-                                                                        <option value="<?php echo $row['StateName']; ?>">
-                                                                            <?php echo $row['StateName']; ?>
+                                                                        <option value="<?php echo h($row['StateName']); ?>">
+                                                                            <?php echo h($row['StateName']); ?>
                                                                         </option>
                                                                     <?php } ?>
                                                                 </select>
@@ -213,7 +229,7 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
                                                             <label class=" col-sm-3 control-label">Pictures</label>
                                                             <div class="col-lg-6">
                                                                 <input type="file" class="form-control" name="roomimages"
-                                                                    id="roomimages" value="">
+                                                                    id="roomimages" required="true" accept="image/jpeg,image/png,image/webp,image/gif">
                                                             </div>
                                                         </div>
                                                         <hr />
@@ -404,4 +420,3 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
     </body>
 
     </html>
-<?php } ?>

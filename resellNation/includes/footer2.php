@@ -2,7 +2,7 @@
   <div class="container">
     <div class="row g-4 justify-content-between">
       <div class="col-lg-5 col-md-6">
-        <h5 class="fw-bold mb-3 text-white">UrbanNest &bull; <span style="color: #ff3333;">Urban Nation</span></h5>
+        <h5 class="fw-bold mb-3 text-white">UrbanNest &bull; <span style="color: #e63946;">Urban Nation</span></h5>
         <p class="text-white-50 small" style="line-height: 1.7;">
           Urban Nation is the dedicated thrift & resale community by UrbanNest. We empower students and PG residents to sustainably buy, sell, and upgrade their living essentials with zero commission fees.
         </p>

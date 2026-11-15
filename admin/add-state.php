@@ -1,22 +1,23 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid'] == 0)) {
-    header('location:logout.php');
-} else {
-    if (isset($_POST['submit'])) {
-        $statename = $_POST['statename'];
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
+include('includes/dbconnection.php');
 
-        $query = mysqli_query($con, "insert into tblstate(StateName) value('$statename')");
-        if ($query) {
-            echo "<script>alert('State has been added.');</script>";
-            echo "<script>window.location.href='manage-state.php'</script>";
-        } else {
-            echo "<script>alert('Something Went Wrong. Please try again.');</script>";
-        }
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $statename = trim((string) ($_POST['statename'] ?? ''));
+
+    $stmt = mysqli_prepare($con, "INSERT INTO tblstate(StateName) VALUES (?)");
+    mysqli_stmt_bind_param($stmt, 's', $statename);
+    if ($statename !== '' && mysqli_stmt_execute($stmt)) {
+        echo "<script>alert('State has been added.');</script>";
+        echo "<script>window.location.href='manage-state.php'</script>";
+        exit;
+    } else {
+        echo "<script>alert('Something Went Wrong. Please try again.');</script>";
     }
-    ?>
+}
+?>
 
     <!DOCTYPE html>
 
@@ -40,7 +41,10 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
         <link href="css/font-awesome.css" rel="stylesheet">
         <!-- //font-awesome icons -->
         <script src="js/jquery2.0.3.min.js"></script>
-    </head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
+</head>
 
     <body>
         <section id="container">
@@ -72,6 +76,7 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
                                         <div class="form">
 
                                             <form class="cmxform form-horizontal " method="post" action="">
+                                                <?php echo csrf_field(); ?>
                                                 <div class="form-group ">
                                                     <label for="adminname" class="control-label col-lg-3">State</label>
                                                     <div class="col-lg-6">
@@ -117,4 +122,3 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
     </body>
 
     </html>
-<?php } ?>

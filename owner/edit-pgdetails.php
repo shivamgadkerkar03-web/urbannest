@@ -1,50 +1,47 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasoid']==0)) {
-  header('location:logout.php');
-  }
-  else{
+$ownerid = require_owner('login.php');
 
-if(isset($_POST['submit']))
-  {
-    $eid=$_GET['editid'];
-    $statename=$_POST['state'];
-    $cityname=$_POST['city'];
-    
-    $pgname=$_POST['pgname'];
-    $typepg=$_POST['typepg'];
-    $rpmonth=$_POST['rpmonth'];
-    $norooms=$_POST['norooms'];
-    $address=$_POST['address'];
-    $roomimages=$_POST['roomimages'];
-    $electricity=$_POST['electricity'];
 
-    $parking=$_POST['parking'];
-    $ref=$_POST['refregerator'];
-    $furnished=$_POST['furnished'];
-    $ac=$_POST['ac'];
-    $balcony=$_POST['balcony'];
-    $table=$_POST['table'];
-    $laundry=$_POST['laundry'];
-    $security=$_POST['security'];
-    $brekfast=$_POST['breakfast'];
-    $lunch=$_POST['lunch'];
-    $dinner=$_POST['dinner'];
-     
-    $query=mysqli_query($con, "update tblpg set StateName='$statename', CityName='$cityname', PGTitle='$pgname', Type='$typepg', RPmonth='$rpmonth',norooms='$norooms',Address='$address',Electricity='$electricity',Parking='$parking',Refregerator='$ref',Furnished='$furnished',AC='$ac',Balcony='$balcony',StudyTable='$table',Laundry='$laundry',Security='$security',MealsBreakfast='$brekfast',MealLunch='$lunch',MealDinner='$dinner' where ID='$eid'");
-    if ($query) {
-    $msg="PG details has been Updated.";
-  }
-  else
-    {
-      $msg="Something Went Wrong. Please try again";
+$eid = (int) ($_GET['editid'] ?? 0);
+$msg = '';
+
+$own = mysqli_prepare($con, "SELECT ID FROM tblpg WHERE ID = ? AND OwnerID = ?");
+mysqli_stmt_bind_param($own, 'ii', $eid, $ownerid);
+mysqli_stmt_execute($own);
+$ownsPg = (bool) mysqli_fetch_assoc(mysqli_stmt_get_result($own));
+mysqli_stmt_close($own);
+if (!$ownsPg) {
+    redirect_to('manage-pgdetails.php');
+}
+
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $keys = ['state', 'city', 'pgname', 'typepg', 'rpmonth', 'norooms', 'address', 'electricity', 'parking',
+        'refregerator', 'furnished', 'ac', 'balcony', 'table', 'laundry', 'security', 'breakfast', 'lunch', 'dinner'];
+    $f = [];
+    foreach ($keys as $key) {
+        $f[$key] = trim((string) ($_POST[$key] ?? ''));
     }
 
-  }
+    $stmt = mysqli_prepare($con, "UPDATE tblpg SET StateName = ?, CityName = ?, PGTitle = ?, Type = ?, RPmonth = ?, norooms = ?, Address = ?, Electricity = ?, Parking = ?, Refregerator = ?, Furnished = ?, AC = ?, Balcony = ?, StudyTable = ?, Laundry = ?, Security = ?, MealsBreakfast = ?, MealLunch = ?, MealDinner = ? WHERE ID = ? AND OwnerID = ?");
+    mysqli_stmt_bind_param(
+        $stmt,
+        'sssssssssssssssssssii',
+        $f['state'], $f['city'], $f['pgname'], $f['typepg'], $f['rpmonth'], $f['norooms'], $f['address'],
+        $f['electricity'], $f['parking'], $f['refregerator'], $f['furnished'], $f['ac'], $f['balcony'],
+        $f['table'], $f['laundry'], $f['security'], $f['breakfast'], $f['lunch'], $f['dinner'],
+        $eid, $ownerid
+    );
+    if ($f['pgname'] !== '' && mysqli_stmt_execute($stmt)) {
+        $msg = "PG details has been Updated.";
+    } else {
+        $msg = "Something Went Wrong. Please try again";
+    }
+    mysqli_stmt_close($stmt);
 }
-  ?>
+?>
 <!DOCTYPE html>
 <head>
 <title>UrbanNest  | PG Updation </title>
@@ -63,7 +60,7 @@ function getCity(val) {
   $.ajax({
 type:"POST",
 url:"get-city.php",
-data:'sateid='+val,
+data:{ sateid: val },
 success:function(data){
 $("#city").html(data);
 }});
@@ -71,9 +68,12 @@ $("#city").html(data);
  </script>
 
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
-<section id="container"
+<section id="container">
 <?php include_once('includes/header.php');?>
 <?php include_once('includes/sidebar.php');?>
 <section id="main-content">
@@ -88,26 +88,27 @@ $("#city").html(data);
             </header>
 
             <div class="panel-body">
-<?php if($msg){ ?>
+<?php if ($msg) { ?>
 <div class="alert alert-info" role="alert">
-                    <strong>Message !</strong>  
-    <?php echo $msg;}  ?>
+                    <strong>Message !</strong>
+    <?php echo h($msg); ?>
                 </div>
+<?php } ?>
 
  
 
      <?php
- $cid=$_GET['editid'];
-$ret=mysqli_query($con,"select * from tblpg where ID='$cid'");
+$ret=mysqli_query($con,"select * from tblpg where ID=" . $eid . " and OwnerID=" . (int) $ownerid);
 $cnt=1;
 while ($row=mysqli_fetch_array($ret)) {
 
 ?>
                 <form class="form-horizontal bucket-form" method="post" enctype="multipart/form-data">
+                    <?php echo csrf_field(); ?>
                     <div class="form-group">
                         <label class="col-sm-3 control-label">PG Name</label>
                         <div class="col-sm-6">
-                            <input type="text" name="pgname" class="form-control" required="true" value="<?php  echo $row['PGTitle'];?>">
+                            <input type="text" name="pgname" class="form-control" required="true" value="<?php echo h($row['PGTitle']); ?>">
                         </div>
                     </div>
                     
@@ -116,12 +117,12 @@ while ($row=mysqli_fetch_array($ret)) {
                         <div class="col-lg-6">
                            
                  <select class="form-control m-bot15" name="state" id="state" onChange="getCity(this.value);">
-                                <option value="<?php echo $row['StateName'];?>"><?php echo $row['StateName'];?></option>
+                                <option value="<?php echo h($row['StateName']); ?>"><?php echo h($row['StateName']); ?></option>
                                 <?php $query1=mysqli_query($con,"select * from tblstate");
               while($row1=mysqli_fetch_array($query1))
               {
               ?>    
-              <option value="<?php echo $row1['StateName'];?>"><?php echo $row1['StateName'];?></option>
+              <option value="<?php echo h($row1['StateName']); ?>"><?php echo h($row1['StateName']); ?></option>
                   <?php } ?> 
                             </select>
                         </div>
@@ -130,7 +131,7 @@ while ($row=mysqli_fetch_array($ret)) {
                         <label class="col-sm-3 control-label col-lg-3" for="inputSuccess">Choose City</label>
                         <div class="col-lg-6">
                           <select class="form-control m-bot15" name="city" id="city" required="true">
-                 <option value="<?php echo $row['CityName'];?>"><?php echo $row['CityName'];?></option>
+                 <option value="<?php echo h($row['CityName']); ?>"><?php echo h($row['CityName']); ?></option>
                             </select>  
 
 
@@ -139,25 +140,25 @@ while ($row=mysqli_fetch_array($ret)) {
                     <div class="form-group">
                         <label class="col-sm-3 control-label">Rent Per Month</label>
                         <div class="col-sm-6">
-                            <input class="form-control" id="rpmonth" name="rpmonth" type="text" required="true" value="<?php echo $row['RPmonth'];?>">
+                            <input class="form-control" id="rpmonth" name="rpmonth" type="text" required="true" value="<?php echo h($row['RPmonth']); ?>">
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="col-sm-3 control-label">Number of Rooms</label>
                         <div class="col-sm-6">
-                            <input type="text" class="form-control" name="norooms" id="norooms" required="true" value="<?php echo $row['norooms'];?>">
+                            <input type="text" class="form-control" name="norooms" id="norooms" required="true" value="<?php echo h($row['norooms']); ?>">
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="col-sm-3 control-label">Address</label>
                         <div class="col-sm-6">
-                            <textarea type="text" class="form-control" name="address" id="address" value="" required="true"><?php echo $row['Address'];?></textarea>
+                            <textarea type="text" class="form-control" name="address" id="address" value="" required="true"><?php echo h($row['Address']); ?></textarea>
                         </div>
                     </div>
                     <div class="form-group">
                         <label class=" col-sm-3 control-label">Pictures</label>
                         <div class="col-lg-6">
-                             <img src="roomimages/<?php echo $row['Image'];?>" width="200" height="150" value="<?php  echo $row['Image'];?>"><a href="changeimage.php?editid=<?php echo $row['ID'];?>">Edit Image</a>
+                             <img src="roomimages/<?php echo h(rawurlencode(basename((string) $row['Image']))); ?>" width="200" height="150" alt=""><a href="changeimage.php?editid=<?php echo h($row['ID']); ?>">Edit Image</a>
                         </div>
                     </div>
                     <hr />
@@ -348,14 +349,12 @@ while ($row=mysqli_fetch_array($ret)) {
                                 </div>
 
                 </form>
-            </div>
             <?php } ?>
+            </div>
         </section>
-
-
-
-    
         </div>
+        </div>
+    </div>
 </section>
 
 		  <?php include_once('includes/footer.php');?>

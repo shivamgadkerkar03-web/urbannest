@@ -1,31 +1,36 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid'] == 0)) {
-    header('location:logout.php');
-} else {
-    if (isset($_POST['submit'])) {
-        $eid = $_GET['editid'];
-        $fullname = $_POST['fullname'];
-        $mobno = $_POST['contactnumber'];
-        $email = $_POST['email'];
-        $status = $_POST['status'];
 
-        $query = mysqli_query($con, "UPDATE tblowner SET FullName='$fullname', Email='$email', MobileNumber='$mobno', status='$status' WHERE ID='$eid'");
+$eid = (int) ($_GET['editid'] ?? 0);
+$msg = '';
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $fullname = trim((string) ($_POST['fullname'] ?? ''));
+    $mobno = trim((string) ($_POST['contactnumber'] ?? ''));
+    $email = trim((string) ($_POST['email'] ?? ''));
+    $status = (int) ($_POST['status'] ?? 0) === 1 ? 1 : 0;
 
-        if ($query) {
+    if ($fullname === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !preg_match('/^[0-9]{10}$/', $mobno)) {
+        $msg = "Please enter a valid name, email and 10 digit mobile number.";
+    } else {
+        $stmt = mysqli_prepare($con, "UPDATE tblowner SET FullName = ?, Email = ?, MobileNumber = ?, status = ? WHERE ID = ?");
+        mysqli_stmt_bind_param($stmt, 'sssii', $fullname, $email, $mobno, $status, $eid);
+        if (mysqli_stmt_execute($stmt)) {
             $msg = "Owner profile has been updated.";
         } else {
             $msg = "Something Went Wrong. Please try again";
         }
+        mysqli_stmt_close($stmt);
     }
+}
 ?>
 
     <!DOCTYPE html>
 
     <head>
-        <title>UrbanNest || Update State </title>
+        <title>UrbanNest || Update Owner </title>
         <script type="application/x-javascript">
             addEventListener("load", function() {
                 setTimeout(hideURLbar, 0);
@@ -48,7 +53,10 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
         <link href="css/font-awesome.css" rel="stylesheet">
         <!-- //font-awesome icons -->
         <script src="js/jquery2.0.3.min.js"></script>
-    </head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
+</head>
 
     <body>
         <section id="container">
@@ -78,51 +86,47 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
                                     </header>
                                     <div class="panel-body">
                                         <div class="form">
-                                            <p style="font-size:16px; color:red" align="center"> <?php if ($msg) {
-                                                                                                        echo $msg;
-                                                                                                    }  ?> </p>
+                                            <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>
                                             <?php
-                                            $cid = $_GET['editid'];
-                                            $ret = mysqli_query($con, "select * from tblowner where ID='$cid'");
-                                            $cnt = 1;
-                                            while ($row = mysqli_fetch_array($ret)) {
-
+                                            $ret = mysqli_query($con, "select * from tblowner where ID=" . $eid);
                                             ?>
-
-
                                                 <form class="cmxform form-horizontal " method="post" action="">
+                                                    <?php echo csrf_field(); ?>
+                                            <?php
+                                            while ($row = mysqli_fetch_array($ret)) {
+                                            ?>
                                                     <div class="form-group ">
                                                         <label for="adminname" class="control-label col-lg-3">Full Name</label>
                                                         <div class="col-lg-6">
-                                                            <input class=" form-control" id="fullname" name="fullname" type="text" value="<?php echo $row['FullName']; ?>" required="true">
+                                                            <input class=" form-control" id="fullname" name="fullname" type="text" value="<?php echo h($row['FullName']); ?>" required="true">
                                                         </div>
                                                     </div>
                                                     <div class="form-group ">
                                                         <label for="email" class="control-label col-lg-3">Email</label>
                                                         <div class="col-lg-6">
-                                                            <input class="form-control " id="email" name="email" type="email" value="<?php echo $row['Email']; ?>" required="true">
+                                                            <input class="form-control " id="email" name="email" type="email" value="<?php echo h($row['Email']); ?>" required="true">
                                                         </div>
                                                     </div>
                                                     <div class="form-group ">
                                                         <label for="username" class="control-label col-lg-3">Mobile Number</label>
                                                         <div class="col-lg-6">
-                                                            <input class="form-control " id="contactnumber" name="contactnumber" type="text" value="<?php echo $row['MobileNumber']; ?>" required="true">
+                                                            <input class="form-control " id="contactnumber" name="contactnumber" type="text" value="<?php echo h($row['MobileNumber']); ?>" required="true">
                                                         </div>
                                                     </div>
                                                     <div class="form-group ">
                                                         <label for="username" class="control-label col-lg-3">Registration Date</label>
                                                         <div class="col-lg-6">
-                                                            <input class="form-control " id="regDate" name="regdate" type="text" value="<?php echo $row['RegDate']; ?>" readonly="true">
+                                                            <input class="form-control " id="regDate" name="regdate" type="text" value="<?php echo h($row['RegDate']); ?>" readonly="true">
                                                         </div>
                                                     </div>
                                                     <div class="form-group">
                                                         <label for="status" class="control-label col-lg-3">Status</label>
                                                         <div class="col-lg-6">
                                                             <label class="radio-inline">
-                                                                <input type="radio" name="status" value="1" <?php if ($row['Status'] == 1) echo 'checked'; ?>> Active
+                                                                <input type="radio" name="status" value="1" <?php if ($row['status'] == 1) echo 'checked'; ?>> Active
                                                             </label>
                                                             <label class="radio-inline">
-                                                                <input type="radio" name="status" value="0" <?php if ($row['Status'] == 0) echo 'checked'; ?>> Inactive
+                                                                <input type="radio" name="status" value="0" <?php if ($row['status'] == 0) echo 'checked'; ?>> Inactive
                                                             </label>
                                                         </div>
                                                     </div>
@@ -165,4 +169,3 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
     </body>
 
     </html>
-<?php }  ?>

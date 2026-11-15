@@ -1,35 +1,35 @@
- <?php
-session_start();
+<?php
+require_once __DIR__ . '/../includes/security.php';
 include('includes/dbconnection.php');
-error_reporting(0);
-if (strlen($_SESSION['pgasoid']==0)) {
-  header('location:logout.php');
-  } else{
-if(isset($_POST['submit']))
-{
-$ownid=$_SESSION['pgasoid'];
-$cpassword=md5($_POST['currentpassword']);
-$newpassword=md5($_POST['newpassword']);
-$query=mysqli_query($con,"select ID from tblowner where ID='$ownid' and   Password='$cpassword'");
-$row=mysqli_fetch_array($query);
-if($row>0){
-$ret=mysqli_query($con,"update tblowner set Password='$newpassword' where ID='$ownid'");
-$msg= "Your password successully changed"; 
-} else {
+$ownerid = require_owner('login.php');
 
-$msg="Your current password is wrong";
+$msg = '';
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $cpassword = (string) ($_POST['currentpassword'] ?? '');
+    $newpassword = (string) ($_POST['newpassword'] ?? '');
+    $confirm = (string) ($_POST['confirmpassword'] ?? '');
+
+    $stmt = mysqli_prepare($con, "SELECT Password FROM tblowner WHERE ID = ?");
+    mysqli_stmt_bind_param($stmt, 'i', $ownerid);
+    mysqli_stmt_execute($stmt);
+    $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+
+    if (!$row || !verify_password($cpassword, $row['Password'])) {
+        $msg = "Your current password is wrong";
+    } elseif ($newpassword === '' || $newpassword !== $confirm) {
+        $msg = "New Password and Confirm Password field does not match";
+    } else {
+        $hash = hash_password($newpassword);
+        $up = mysqli_prepare($con, "UPDATE tblowner SET Password = ? WHERE ID = ?");
+        mysqli_stmt_bind_param($up, 'si', $hash, $ownerid);
+        mysqli_stmt_execute($up);
+        mysqli_stmt_close($up);
+        $msg = "Your password successully changed";
+    }
 }
-
-
-
-}
-
-  
-  ?>
-
-
-
-
+?>
 <!DOCTYPE html>
 <head>
 <title>UrbanNest || Change Password  </title>
@@ -61,6 +61,9 @@ return true;
 } 
 
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -91,19 +94,11 @@ return true;
                         </header>
                         <div class="panel-body">
                             <div class="form">
-               <p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>                  
+               <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>                  
 
-  <?php
-  
-$ownid=$_SESSION['pgasoid'];
-$ret=mysqli_query($con,"select * from tblowner where ID='$ownid'");
-$cnt=1;
-while ($row=mysqli_fetch_array($ret)) {
-?>
 
                                 <form class="cmxform form-horizontal " method="post" action="" name="changepassword" onsubmit="return checkpass();">
+                                    <?php echo csrf_field(); ?>
                                     <div class="form-group ">
                                         <label for="adminname" class="control-label col-lg-3">Current Password: </label>
                                         <div class="col-lg-6">
@@ -123,7 +118,6 @@ while ($row=mysqli_fetch_array($ret)) {
                                         </div>
                                     </div>
                                    
-                                    <?php } ?>
                         
                                   
 
@@ -160,4 +154,3 @@ while ($row=mysqli_fetch_array($ret)) {
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

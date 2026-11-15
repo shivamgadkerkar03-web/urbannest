@@ -1,260 +1,148 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasuid']==0)) {
-  header('location:logout.php');
-  } else{
+$uid = require_user('signin.php');
+
+$bookid = (int) ($_GET['bkid'] ?? 0);
+$stmt = mysqli_prepare($con, "SELECT tblbookpg.*, tblpg.PGTitle, tblpg.Image, tblpg.StateName, tblpg.CityName, tblpg.RPmonth, tblpg.norooms, tblpg.Address, tblpg.MealsBreakfast, tblpg.MealLunch, tblpg.MealDinner, tblpg.Electricity, tblpg.Parking, tblpg.Refregerator, tblpg.Furnished, tblpg.AC, tblpg.Balcony, tblpg.StudyTable, tblpg.Laundry, tblpg.Security FROM tblbookpg JOIN tblpg ON tblpg.ID = tblbookpg.Pgid WHERE tblbookpg.ID = ? AND tblbookpg.Userid = ?");
+mysqli_stmt_bind_param($stmt, 'ii', $bookid, $uid);
+mysqli_stmt_execute($stmt);
+$row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
 ?>
 <!DOCTYPE html>
-<html lang="zxx" class="no-js">
+<html lang="en">
 
 <head>
-    
-    <!-- Site Title -->
-    <title>PG Accomodation details Details</title>
+    <?php include __DIR__ . '/includes/head.php'; ?>
+    <title>Booking Details | UrbanNest</title>
+    <style>
+        .bd-img {
+            width: 100%;
+            aspect-ratio: 16 / 10;
+            object-fit: cover;
+            border-radius: var(--un-radius);
+        }
 
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-    <!--
-			CSS
-			============================================= -->
-    <link rel="stylesheet" href="css/linearicons.css">=
-    <link rel="stylesheet" href="css/font-awesome.min.css">
-    <link rel="stylesheet" href="css/nice-select.css">
-    <link rel="stylesheet" href="css/ion.rangeSlider.css" />
-    <link rel="stylesheet" href="css/ion.rangeSlider.skinFlat.css" />
-    <link rel="stylesheet" href="css/bootstrap.css">
-    <link rel="stylesheet" href="css/owl.carousel.css">
-    <link rel="stylesheet" href="css/main.css">
+        .detail-table th {
+            width: 38%;
+            font-weight: 500;
+            color: var(--un-muted);
+        }
+
+        .status-pill {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: #fff4e0;
+            color: #a86400;
+        }
+
+        .status-pill.is-confirmed {
+            background: #e8f6ee;
+            color: #1e7d48;
+        }
+
+        .status-pill.is-cancelled {
+            background: #fdecee;
+            color: #c1121f;
+        }
+    </style>
 </head>
 
 <body>
 
-    <!-- Start Header Area -->
-    <?php include_once('includes/header.php');?>
-    <!-- End Header Area -->
+    <?php include_once('includes/header.php'); ?>
 
-    <!-- start banner Area --> 
-
-    <section class="banner-area relative" id="home">
+    <section class="banner-area relative">
         <div class="overlay overlay-bg"></div>
         <div class="container">
-            <div class="row d-flex text-center align-items-center justify-content-center">
+            <div class="row text-center justify-content-center">
                 <div class="about-content col-lg-12">
-                    <p class="text-white link-nav"><a href="index.php">Home </a>
-                        <span class="lnr lnr-arrow-right"></span>
-                        <a href="particularpg-details.php">
-                            My Booking
-                        </a>
-                        
-                        </p>
-                    <h1 class="text-white">
-                       Booking Details
-                    </h1>
+                    <p class="text-white link-nav"><a href="index.php">Home</a>
+                        <span class="lnr lnr-arrow-right"></span> <a href="my-bookings.php">My Bookings</a>
+                        <span class="lnr lnr-arrow-right"></span> <span>Booking Details</span></p>
+                    <h1 class="text-white">Booking Details</h1>
                 </div>
             </div>
         </div>
     </section>
-     <!-- End banner Area -->
 
-    <!--  Blog Area -->
-  
-    <section class="blog_area single-post-area p_120">
+    <section class="section-gap">
         <div class="container">
-            <div class="row mt-80">
-                 <?php
- $bookid=intval($_GET['bkid']);
-$ret=mysqli_query($con,"select * from tblbookpg join tblpg on tblpg.id=tblbookpg.Pgid where tblbookpg.ID='$bookid'");
-$cnt=1;
-while ($row=mysqli_fetch_array($ret)) {
-
-?>
-                <div class="col-lg-12 posts-list">
-                    <div class="single-post row">
-                        <div class="col-lg-12">
-                            <div class="feature-img" align="center">
-<img src="owner/roomimages/<?php echo $row['Image'];?>" alt="" height='350' width="1000" style="border:#000 solid 2px;" ></div>
- <h2 align="center" style="padding-top:2%"><?php echo $row['PGTitle'];?>'s PG Booking Details</h2>
- </div>
-  <div class="col-lg-12 col-md-9 blog_details"> 
-<table border="1" class="table table-bordered mg-b-0">
-                    
-  <tr>
-    <th>Booking Id</th>
-    <td><?php  echo $row['BookingNumber'];?></td>
-     <th>Booking Date</th>
-    <td><?php  echo $row['BookingDate'];?></td>
-  </tr>   
-   <tr>
-    <th>Check-in Date</th>
-    <td><?php  echo $row['CheckinDate'];?></td>
-    <th>Status</th>
-    <td><?php if($row['Status']=="")
-{
-echo "Not Confiremed Yet";
-} else {
-echo $row['Status'];
-}?></td>
-  </tr>
-  <tr>
-    <th>User Remark</th>
-    <td colspan="3"><?php  echo $row['UserMsg'];?></td>
-
-  </tr>  
-   <tr>
-       <th>Owner Remark</th>
-    <td colspan="3"><?php  echo $row['Remark'];?></td>
-  </tr>                 
-<tr>
-    <th>Owner Remark Date</th>
-    <td colspan="3"><?php  echo $row['RemDate'];?></td>
-  </tr>
- </table>
- <h2 align="center" style="color:blue">PG Details</h2>
-  </div>                     
-                     
-<div class="col-lg-6 col-md-9 blog_details">
-<table border="1" class="table table-bordered mg-b-0">
-                    
-  <tr>
-    <th>State</th>
-    <td><?php  echo $row['StateName'];?></td>
-  </tr>   
-   <tr>
-    <th>City</th>
-    <td><?php  echo $row['CityName'];?></td>
-  </tr>
-  <tr>
-    <th>Rent Per Month</th>
-    <td><?php  echo $row['RPmonth'];?></td>
-  </tr>  
-   <tr>
-    <th>Number of Rooms</th>
-    <td><?php  echo $row['norooms'];?></td>
-  </tr>                 
-<tr>
-    <th>Address</th>
-    <td><?php  echo $row['Address'];?></td>
-  </tr>
- </table>
-
-  <table border="1" class="table table-bordered mg-b-0">
-<tr align="center">
-<th style="color: red; font-size: 25px" colspan="2">Meals which offer by PG</th>
-</tr>  
-  <tr>
-    <th>Breakfast</th>
-    <td><?php  
-if($row['MealsBreakfast']==''){
-    echo "NA";
-} else {
-echo $row['MealsBreakfast'];
-}
-?></td>
-  </tr> 
-  <tr>
-    <th>Lunch</th>
-    <td><?php 
-if($row['MealLunch']==''){
-    echo "NA";
-} else {
-echo $row['MealLunch'];
-}
-?></td>
-  </tr>
-  <tr>
-    <th>Dinner</th>
-    <td><?php 
-if($row['MealDinner']==''){
-    echo "NA";
-} else {
-echo $row['MealDinner'];
-}
-?></td>
-  </tr>                   
-   </table>
-
-
-
-  </div>
-
-   <div class="col-lg-6 col-md-9 blog_details"> 
-    <table border="1" class="table table-bordered mg-b-0">     
-<tr align="center">
-  <th style="color: red; font-size: 25px" colspan="2">Facilities</th>
-</tr>
-      <tr>
-    <th>Electricity</th>
-    <td><?php  echo $row['Electricity'];?></td>
-  </tr> 
-  <tr>
-    <th>Parking</th>
-    <td><?php  echo $row['Parking'];?></td>
-  </tr> 
-  <tr>
-    <th>Refregerator</th>
-    <td><?php  echo $row['Refregerator'];?></td>
-  </tr> 
-  <tr>
-    <th>Full Furnished</th>
-    <td><?php  echo $row['Furnished'];?></td>
-  </tr> 
-  <tr>
-    <th>AC</th>
-    <td><?php  echo $row['AC'];?></td>
-  </tr> 
-  <tr>
-    <th>Balcony</th>
-    <td><?php  echo $row['Balcony'];?></td>
-  </tr> 
-  <tr>
-    <th>Table/Study Lamp</th>
-    <td><?php  echo $row['StudyTable'];?></td>
-  </tr> 
-  <tr>
-    <th>Laundry</th>
-    <td><?php  echo $row['Laundry'];?></td>
-  </tr>
-  <tr>
-    <th>Security</th>
-    <td><?php  echo $row['Security'];?></td>
-  </tr>
-  </table>
-                  
-                  
-
-      <?php } ?>  
-
-
-                        </div>
-                     
+            <?php if (!$row) { ?>
+                <div class="empty-state un-card">
+                    <span class="lnr lnr-calendar-full"></span>
+                    Booking not found.
+                    <div class="mt-3"><a href="my-bookings.php" class="btn btn-primary">Back to My Bookings</a></div>
+                </div>
+            <?php } else {
+                $status = trim((string) $row['Status']);
+                $statusClass = $status === 'Confirmed' ? 'is-confirmed' : ($status === 'Cancelled' ? 'is-cancelled' : '');
+                $show = function ($v) {
+                    $v = trim((string) $v);
+                    return $v === '' ? '<span class="text-muted">&ndash;</span>' : h($v);
+                };
+                $yesList = function (array $map) use ($row) {
+                    $out = [];
+                    foreach ($map as $label => $col) {
+                        if (strcasecmp(trim((string) $row[$col]), 'Yes') === 0) {
+                            $out[] = $label;
+                        }
+                    }
+                    return $out;
+                };
+                $meals = $yesList(['Breakfast' => 'MealsBreakfast', 'Lunch' => 'MealLunch', 'Dinner' => 'MealDinner']);
+                $facilities = $yesList(['Electricity' => 'Electricity', 'Parking' => 'Parking', 'Refrigerator' => 'Refregerator', 'Furnished' => 'Furnished', 'AC' => 'AC', 'Balcony' => 'Balcony', 'Study table' => 'StudyTable', 'Laundry' => 'Laundry', 'Security' => 'Security']);
+                $rent = is_numeric($row['RPmonth']) ? number_format((float) $row['RPmonth']) : h($row['RPmonth']);
+            ?>
+                <div class="row g-4">
+                    <div class="col-lg-5">
+                        <img class="bd-img mb-3" src="owner/roomimages/<?= rawurlencode(basename((string) $row['Image'])) ?>"
+                            alt="<?= h($row['PGTitle']) ?>" onerror="this.src='img/default-property.jpg'">
+                        <h2 class="h4 mb-1"><?= h($row['PGTitle']) ?></h2>
+                        <p class="text-muted mb-2"><span class="lnr lnr-map-marker"></span> <?= h($row['CityName']) ?>, <?= h($row['StateName']) ?></p>
+                        <p class="mb-3"><?= h($row['Address']) ?></p>
+                        <a class="btn btn-outline-primary btn-sm" href="pg-details.php?pid=<?= (int) $row['Pgid'] ?>">View PG listing</a>
                     </div>
-                
-            
+
+                    <div class="col-lg-7">
+                        <div class="un-card mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3 class="h5 mb-0">Booking #<?= h($row['BookingNumber']) ?></h3>
+                                <span class="status-pill <?= $statusClass ?>"><?= $status === '' ? 'Awaiting owner' : h($status) ?></span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table detail-table mb-0">
+                                    <tr><th>Requested on</th><td><?= h(date('d M Y, h:i A', strtotime($row['BookingDate']))) ?></td></tr>
+                                    <tr><th>Check-in date</th><td><?= h(date('d M Y', strtotime($row['CheckinDate']))) ?></td></tr>
+                                    <tr><th>Your message</th><td><?= $show($row['UserMsg']) ?></td></tr>
+                                    <tr><th>Owner remark</th><td><?= $show($row['Remark']) ?></td></tr>
+                                    <tr><th>Remark date</th><td><?= !empty($row['RemDate']) ? h(date('d M Y', strtotime($row['RemDate']))) : $show('') ?></td></tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="un-card">
+                            <h3 class="h5 mb-3">PG summary</h3>
+                            <div class="table-responsive">
+                                <table class="table detail-table mb-0">
+                                    <tr><th>Rent per month</th><td>&#8377;<?= $rent ?></td></tr>
+                                    <tr><th>Rooms</th><td><?= $show($row['norooms']) ?></td></tr>
+                                    <tr><th>Meals</th><td><?= $meals ? h(implode(', ', $meals)) : $show('') ?></td></tr>
+                                    <tr><th>Facilities</th><td><?= $facilities ? h(implode(', ', $facilities)) : $show('') ?></td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <?php } ?>
         </div>
     </section>
-    <!--  Blog Area -->
 
-    <!-- start footer Area -->
-
-   <?php include_once('includes/footer.php');?>
-   <!-- End footer Area -->
-
-
-    <script src="js/vendor/jquery-2.2.4.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js" integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4"
-        crossorigin="anonymous"></script>
-    <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBhOdIF3Y9382fqJYt5I_sswSrEw5eihAA"></script>
-    <script src="js/vendor/bootstrap.min.js"></script>
-    <script src="js/jquery.ajaxchimp.min.js"></script>
-    <script src="js/jquery.nice-select.min.js"></script>
-    <script src="js/jquery.sticky.js"></script>
-    <script src="js/ion.rangeSlider.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-    <script src="js/jquery.magnific-popup.min.js"></script>
-    <script src="js/owl.carousel.min.js"></script>
-    <script src="js/main.js"></script>
+    <?php include_once('includes/footer.php'); ?>
 </body>
 
 </html>
-<?php } ?>

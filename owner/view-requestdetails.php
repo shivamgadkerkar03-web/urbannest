@@ -1,30 +1,36 @@
 <?php
-session_start();
-//error_reporting(0);
-include ('includes/dbconnection.php');
-if (strlen($_SESSION['pgasoid'] == 0)) {
-  header('location:logout.php');
-} else {
+require_once __DIR__ . '/../includes/security.php';
+include('includes/dbconnection.php');
+$ownerid = require_owner('login.php');
 
-  if (isset($_POST['submit'])) {
+$vid = (int) ($_GET['viewid'] ?? 0);
+$msg = '';
 
-    $vid = $_GET['viewid'];
-    $ressta = $_POST['status'];
-    $remark = $_POST['remark'];
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $ressta = (string) ($_POST['status'] ?? '');
+    $remark = trim((string) ($_POST['remark'] ?? ''));
 
-
-
-    $query = mysqli_query($con, "update  tblbookpg set Remark='$remark', Status='$ressta' where ID='$vid'");
-    if ($query) {
-      $msg = "Owner Remark has been updated.";
+    if (!in_array($ressta, ['Confirmed', 'Cancelled'], true)) {
+        $msg = "Please select a status.";
+    } elseif ($remark === '' || mb_strlen($remark) > 50) {
+        $msg = "Please enter a remark of up to 50 characters.";
     } else {
-      $msg = "Something Went Wrong. Please try again";
+        $stmt = mysqli_prepare(
+            $con,
+            "UPDATE tblbookpg b JOIN tblpg p ON p.ID = b.Pgid SET b.Remark = ?, b.Status = ?
+             WHERE b.ID = ? AND p.OwnerID = ? AND b.Status IS NULL"
+        );
+        mysqli_stmt_bind_param($stmt, 'ssii', $remark, $ressta, $vid, $ownerid);
+        if (mysqli_stmt_execute($stmt) && mysqli_stmt_affected_rows($stmt) > 0) {
+            $msg = "Owner Remark has been updated.";
+        } else {
+            $msg = "Something Went Wrong. Please try again";
+        }
+        mysqli_stmt_close($stmt);
     }
-
-
-  }
-
-  ?>
+}
+?>
 
 
   <!DOCTYPE html>
@@ -43,7 +49,10 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
     <link rel="stylesheet" href="css/font.css" type="text/css" />
     <link href="css/font-awesome.css" rel="stylesheet">
     <script src="js/jquery2.0.3.min.js"></script>
-  </head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
+</head>
 
   <body>
     <section id="container">
@@ -53,18 +62,14 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
         <section class="wrapper">
           <div class="table-agile-info">
             <div class="panel panel-default">
-              <p style="font-size:16px; color:red" align="center"> <?php if ($msg) {
-                echo $msg;
-              } ?> </p>
+              <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>
               <div class="panel-heading">
                 Paying Guest Details
               </div>
               <div>
                 <?php
 
-                $vid = $_GET['viewid'];
-                $oid = $_SESSION['pgasoid'];
-                $ret = mysqli_query($con, "select tblbookpg.BookingNumber, tblbookpg.CheckinDate,tblbookpg.UserMsg,tblbookpg.Remark, tblbookpg.Status,tblbookpg.RemDate,tblpg.PGTitle,tblpg.StateName,tblpg.CityName,tbluser.FullName,tbluser.Email,tbluser.MobileNumber from tbluser left join tblbookpg on tblbookpg.Userid=tbluser.ID left join tblpg on tblbookpg.Pgid=tblpg.ID where tblbookpg.ID='$vid'");
+                $ret = mysqli_query($con, "select tblbookpg.BookingNumber, tblbookpg.CheckinDate,tblbookpg.UserMsg,tblbookpg.Remark, tblbookpg.Status,tblbookpg.RemDate,tblpg.PGTitle,tblpg.StateName,tblpg.CityName,tbluser.FullName,tbluser.Email,tbluser.MobileNumber from tbluser left join tblbookpg on tblbookpg.Userid=tbluser.ID join tblpg on tblbookpg.Pgid=tblpg.ID where tblbookpg.ID=" . $vid . " and tblpg.OwnerID=" . (int) $ownerid);
 
                 while ($row = mysqli_fetch_array($ret)) {
 
@@ -74,51 +79,51 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
 
                     <tr>
                       <th>Booking Number </th>
-                      <td><?php echo $row['BookingNumber']; ?></td>
+                      <td><?php echo h($row['BookingNumber']); ?></td>
                     </tr>
                     <tr>
                       <th>Checkin Date</th>
-                      <td><?php echo $row['CheckinDate']; ?></td>
+                      <td><?php echo h($row['CheckinDate']); ?></td>
                     </tr>
                     <tr>
                       <th>Message</th>
-                      <td><?php echo $row['UserMsg']; ?></td>
+                      <td><?php echo h($row['UserMsg']); ?></td>
                     </tr>
 
                     <tr>
                       <th>Name Of PG</th>
-                      <td><?php echo $row['PGTitle']; ?></td>
+                      <td><?php echo h($row['PGTitle']); ?></td>
                     </tr>
 
                     <tr>
                       <th>State</th>
-                      <td><?php echo $row['StateName']; ?></td>
+                      <td><?php echo h($row['StateName']); ?></td>
                     </tr>
 
 
 
                     <tr>
                       <th>City Name</th>
-                      <td><?php echo $row['CityName']; ?></td>
+                      <td><?php echo h($row['CityName']); ?></td>
                     </tr>
 
 
                     <tr>
                       <th>Full Name</th>
                       <td>
-                        <?php echo $row['FullName']; ?>
+                        <?php echo h($row['FullName']); ?>
                       </td>
                     </tr>
                     <tr>
                       <th>Email</th>
                       <td>
-                        <?php echo $row['Email']; ?>
+                        <?php echo h($row['Email']); ?>
                       </td>
                     </tr>
                     <tr>
                       <th>Mobile Number</th>
                       <td>
-                        <?php echo $row['MobileNumber']; ?>
+                        <?php echo h($row['MobileNumber']); ?>
                       </td>
                     </tr>
                     <tr>
@@ -127,7 +132,7 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
                       if ($row['Status'] == "") {
                         echo "Not Confirmed Yet";
                       } else {
-                        echo $row['Status'];
+                        echo h($row['Status']);
                       }
 
                       ; ?></td>
@@ -136,19 +141,21 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
                   <table border="1" class="table table-bordered mg-b-0">
                     <?php if ($row['Status'] == "") { ?>
                       <form method="post" name="submit">
+                        <?php echo csrf_field(); ?>
                         <tr>
                           <th>Remark :</th>
                           <td>
                             <textarea name="remark" placeholder="remark" rows="12" cols="14" class="form-control wd-450"
-                              required="true"></textarea>
+                              required="true" maxlength="50"></textarea>
                           </td>
                         </tr>
                         <tr>
                           <th>Status :</th>
                           <td>
                             <select name="status" class="form-control wd-450" required="true">
-                              <option value="Cancelled" selected="true">Cancelled</option>
+                              <option value="">Select status</option>
                               <option value="Confirmed">Confirmed</option>
+                              <option value="Cancelled">Cancelled</option>
                             </select>
                           </td>
                         </tr>
@@ -162,14 +169,14 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
 
                       <tr>
                         <th>Remark</th>
-                        <td><?php echo $row['Remark']; ?></td>
+                        <td><?php echo h($row['Remark']); ?></td>
                       </tr>
 
 
                       <tr>
                         <th>Remark date</th>
                         <td>
-                          <?php echo $row['RemDate']; ?>
+                          <?php echo h($row['RemDate']); ?>
                         </td>
                       </tr>
 
@@ -205,4 +212,3 @@ if (strlen($_SESSION['pgasoid'] == 0)) {
 
     </html>
   <?php } ?>
-<?php } ?>

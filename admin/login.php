@@ -1,23 +1,39 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
 include('includes/dbconnection.php');
 
-if(isset($_POST['login']))
-  {
-    $adminuser=$_POST['username'];
-    $password=md5($_POST['password']);
-    $query=mysqli_query($con,"select ID from tbladmin where  UserName='$adminuser' && Password='$password' ");
-    $ret=mysqli_fetch_array($query);
-    if($ret>0){
-      $_SESSION['pgasaid']=$ret['ID'];
-     header('location:dashboard.php');
+if (current_admin_id() > 0) {
+    redirect_to('dashboard.php');
+}
+
+$msg = '';
+if (isset($_POST['login'])) {
+    $adminuser = trim((string) ($_POST['username'] ?? ''));
+    $password = (string) ($_POST['password'] ?? '');
+
+    $stmt = mysqli_prepare($con, "SELECT ID, Password FROM tbladmin WHERE UserName = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmt, 's', $adminuser);
+    mysqli_stmt_execute($stmt);
+    $ret = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+
+    $needsRehash = false;
+    if ($ret && verify_password($password, $ret['Password'], $needsRehash)) {
+        $adminId = (int) $ret['ID'];
+        if ($needsRehash) {
+            $newHash = hash_password($password);
+            $up = mysqli_prepare($con, "UPDATE tbladmin SET Password = ? WHERE ID = ?");
+            mysqli_stmt_bind_param($up, 'si', $newHash, $adminId);
+            mysqli_stmt_execute($up);
+            mysqli_stmt_close($up);
+        }
+        session_regenerate_id(true);
+        $_SESSION['pgasaid'] = $adminId;
+        redirect_to('dashboard.php');
     }
-    else{
-    $msg="Invalid Details.";
-    }
-  }
-  ?>
+    $msg = "Invalid Details.";
+}
+?>
 <!DOCTYPE html>
 <head>
 <title>UrbanNest | Login </title>
@@ -35,6 +51,9 @@ if(isset($_POST['login']))
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <div class="log-w3">
@@ -44,11 +63,9 @@ if(isset($_POST['login']))
   <h3 align="center">Sign In Now</h3>
   <hr />
 		<form action="#" method="post" name="login">
-			<p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
+			<p style="font-size:16px; color:red" align="center"> <?php echo h($msg); ?> </p>
 			<input type="text" class="ggg" name="username" placeholder="User Name" required="true">
-			<input type="text" class="ggg" name="password" placeholder="PASSWORD" required="true">
+			<input type="password" class="ggg" name="password" placeholder="PASSWORD" required="true">
 			
 			<a href="forgot-password.php">Forgot Password?</a>
 				<div class="clearfix"></div>

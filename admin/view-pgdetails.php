@@ -1,12 +1,8 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  }
-  
-  ?>
+?>
 <!DOCTYPE html>
 <head>
 <title>UrbanNest  | PG Form </title>
@@ -27,6 +23,9 @@ if (strlen($_SESSION['pgasaid']==0)) {
 
 
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -48,13 +47,11 @@ if (strlen($_SESSION['pgasaid']==0)) {
                View Owner PG
             </header>
             <div class="panel-body">
-                <p style="font-size:16px; color:red" align="left"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
+                <p style="font-size:16px; color:red" align="left"> <?php echo h($msg ?? ''); ?> </p>
 
      <?php
- $cid=$_GET['editid'];
-$ret=mysqli_query($con,"select * from tblpg join tblowner on tblowner.ID = tblpg.OwnerID where tblpg.ID='$cid'");
+ $cid = (int) ($_GET['editid'] ?? 0);
+$ret=mysqli_query($con,"select tblpg.ID as PgID, tblpg.StateName, tblpg.CityName, tblpg.PGTitle, tblpg.Type, tblpg.RPmonth, tblpg.norooms, tblpg.Address, tblpg.Image, tblpg.Electricity, tblpg.Parking, tblpg.Refregerator, tblpg.Furnished, tblpg.AC, tblpg.Balcony, tblpg.StudyTable, tblpg.Laundry, tblpg.Security, tblpg.MealsBreakfast, tblpg.MealLunch, tblpg.MealDinner, tblpg.RegDate as PgRegDate, tblpg.IsActive, tblowner.ID as OwnerID, tblowner.FullName, tblowner.Email, tblowner.MobileNumber from tblpg join tblowner on tblowner.ID = tblpg.OwnerID where tblpg.ID=" . $cid);
 $cnt=1;
 while ($row=mysqli_fetch_array($ret)) {
 
@@ -62,99 +59,99 @@ while ($row=mysqli_fetch_array($ret)) {
                 <table border="1" class="table table-bordered mg-b-0">
                     <tr>
     <th>PG Owner</th>
-    <td><?php  echo $row['FullName'];?></td>
+    <td><?php echo h($row['FullName']); ?></td>
   </tr>
                     
                     <tr>
     <th>PG Owner Email</th>
-    <td><?php  echo $row['Email'];?></td>
+    <td><?php echo h($row['Email']); ?></td>
   </tr>   
                  <tr>
     <th>PG Owner Mobile Number</th>
-    <td><?php  echo $row['MobileNumber'];?></td>
+    <td><?php echo h($row['MobileNumber']); ?></td>
   </tr>             
          
                     <tr>
     <th>PG Name</th>
-    <td><?php  echo $row['PGTitle'];?></td>
+    <td><?php echo h($row['PGTitle']); ?></td>
   </tr> 
                <tr>
     <th>State</th>
-    <td><?php  echo $row['StateName'];?></td>
+    <td><?php echo h($row['StateName']); ?></td>
   </tr>   
    <tr>
     <th>City</th>
-    <td><?php  echo $row['CityName'];?></td>
+    <td><?php echo h($row['CityName']); ?></td>
   </tr>
   <tr>
     <th>Rent Per Month</th>
-    <td><?php  echo $row['RPmonth'];?></td>
+    <td><?php echo h($row['RPmonth']); ?></td>
   </tr>  
    <tr>
     <th>Number of Rooms</th>
-    <td><?php  echo $row['norooms'];?></td>
+    <td><?php echo h($row['norooms']); ?></td>
   </tr>                 
 <tr>
     <th>Address</th>
-    <td><?php  echo $row['Address'];?></td>
+    <td><?php echo h($row['Address']); ?></td>
   </tr>
   <tr>
     <th>Room Images</th>
-    <td><img src="../owner/roomimages/<?php echo $row['Image'];?>" width="200" height="150" value="<?php  echo $row['Image'];?>"></td>
+    <td><img src="../owner/roomimages/<?php echo h(rawurlencode(basename((string) $row['Image']))); ?>" width="200" height="150" alt=""></td>
   </tr>
   
     <table border="1" class="table table-bordered mg-b-0">     
 <label class="col-sm-3 control-label col-lg-3" for="inputSuccess" style="color: red">Facilities</label>
       <tr>
     <th>Electricity</th>
-    <td><?php  echo $row['Electricity'];?></td>
+    <td><?php echo h($row['Electricity']); ?></td>
   </tr> 
   <tr>
     <th>Parking</th>
-    <td><?php  echo $row['Parking'];?></td>
+    <td><?php echo h($row['Parking']); ?></td>
   </tr> 
   <tr>
     <th>Refregerator</th>
-    <td><?php  echo $row['Refregerator'];?></td>
+    <td><?php echo h($row['Refregerator']); ?></td>
   </tr> 
   <tr>
     <th>Full Furnished</th>
-    <td><?php  echo $row['furnished'];?></td>
+    <td><?php echo h($row['Furnished']); ?></td>
   </tr> 
   <tr>
     <th>AC</th>
-    <td><?php  echo $row['AC'];?></td>
+    <td><?php echo h($row['AC']); ?></td>
   </tr> 
   <tr>
     <th>Balcony</th>
-    <td><?php  echo $row['Balcony'];?></td>
+    <td><?php echo h($row['Balcony']); ?></td>
   </tr> 
   <tr>
     <th>Table/Study Lamp</th>
-    <td><?php  echo $row['StudyTable'];?></td>
+    <td><?php echo h($row['StudyTable']); ?></td>
   </tr> 
   <tr>
     <th>Laundry</th>
-    <td><?php  echo $row['Laundry'];?></td>
+    <td><?php echo h($row['Laundry']); ?></td>
   </tr>
   <tr>
     <th>Security</th>
-    <td><?php  echo $row['Security'];?></td>
+    <td><?php echo h($row['Security']); ?></td>
   </tr>
   </table>
   <table border="1" class="table table-bordered mg-b-0">
     <label class="col-sm-3 control-label col-lg-3" for="inputSuccess" style="color: red">Meals which offer by PG</label>
   <tr>
     <th>Breakfast</th>
-    <td><?php  echo $row['MealsBreakfast'];?></td>
+    <td><?php echo h($row['MealsBreakfast']); ?></td>
   </tr> 
   <tr>
     <th>Lunch</th>
-    <td><?php  echo $row['MealLunch'];?></td>
+    <td><?php echo h($row['MealLunch']); ?></td>
   </tr>
   <tr>
     <th>Dinner</th>
-    <td><?php  echo $row['MealDinner'];?></td>
+    <td><?php echo h($row['MealDinner']); ?></td>
   </tr>        
                    
    </table>                 

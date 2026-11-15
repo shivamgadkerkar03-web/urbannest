@@ -1,64 +1,43 @@
 <?php
+require_once __DIR__ . '/../includes/market.php';
 
-include ('../connect.php');
+$me = un_json_endpoint();
+$req = un_json_body();
+$action = isset($req['action']) && is_string($req['action']) ? $req['action'] : '';
 
-$postData = json_decode(file_get_contents("php://input"), true);
+try {
+    switch ($action) {
+        case 'list':
+            un_json_ok([
+                'success'       => true,
+                'me'            => $me,
+                'unread'        => un_unread_total($con, $me),
+                'conversations' => un_conversations($con, $me),
+            ]);
+            break;
 
-if ($postData['action'] == "get") {
-    if (isset($postData['ID']) && isset($postData['sellerId'])) {
-        $userID = mysqli_real_escape_string($con, $postData['ID']);
-        $sellerId = mysqli_real_escape_string($con, $postData['sellerId']);
-        $sender = isset($postData['sender']) ? mysqli_real_escape_string($con, $postData['sender']) : '';
+        case 'unread':
+            un_json_ok(['success' => true, 'unread' => un_unread_total($con, $me)]);
+            break;
 
-        // Use prepared statement to prevent SQL injection
-        $stmt = mysqli_prepare($con, "SELECT comm FROM tbluser WHERE ID = ?");
-        mysqli_stmt_bind_param($stmt, "s", $userID);
-        mysqli_stmt_execute($stmt);
-        $result = mysqli_stmt_get_result($stmt);
-        
-        if ($result) {
-            $row = mysqli_fetch_assoc($result);
-            if ($row) {
-                $commData = json_decode($row['comm'], true);
-                if(!is_array($commData)) $commData = [];
-
-                if (isset($commData[$sellerId]) && is_array($commData[$sellerId])) {
-                    // Update 'read' attribute to true for received messages
-                    foreach ($commData[$sellerId] as &$message) {
-                        if ($sender != $message['sender']) {
-                            $message['read'] = true;
-                        }
-                    }
-                    unset($message); // break reference
-
-                    // Save updated read status back
-                    $updatedCommData = json_encode($commData);
-                    $updateStmt = mysqli_prepare($con, "UPDATE tbluser SET comm = ? WHERE ID = ?");
-                    mysqli_stmt_bind_param($updateStmt, "ss", $updatedCommData, $userID);
-                    $updateResult = mysqli_stmt_execute($updateStmt);
-                    mysqli_stmt_close($updateStmt);
-
-                    if ($updateResult) {
-                        echo json_encode(array("success" => true, "comm" => $commData[$sellerId]));
-                    } else {
-                        echo json_encode(array("success" => false, "error" => "Failed to update read status: " . mysqli_error($con)));
-                    }
-                } else {
-                    // No conversation yet — return empty chat (not an error)
-                    echo json_encode(array("success" => true, "comm" => []));
-                }
-            } else {
-                echo json_encode(array("success" => false, "error" => "No data found for the specified ID"));
+        case 'thread':
+            $productId = (int) ($req['product_id'] ?? 0);
+            if ($productId <= 0) {
+                json_fail(400, 'Missing product.');
             }
-        } else {
-            echo json_encode(array("success" => false, "error" => "Failed to execute query: " . mysqli_error($con)));
-        }
-        mysqli_stmt_close($stmt);
-    } else {
-        echo json_encode(array("success" => false, "error" => "ID or sellerId is missing in the request"));
+            $product = un_fetch_product($con, $productId);
+            [$other, $error] = un_resolve_partner($con, $me, $productId, $product, (int) ($req['other_id'] ?? 0));
+            if ($error !== '') {
+                json_fail($product === null ? 404 : 403, $error);
+            }
+            un_mark_read($con, $me, $other, $productId);
+            un_json_ok(un_thread_payload($con, $me, $other, $productId, $product));
+            break;
+
+        default:
+            json_fail(400, 'Unknown action.');
     }
+} catch (Throwable $e) {
+    error_log('chat.php: ' . $e->getMessage());
+    json_fail(500, 'Could not load messages. Please try again.');
 }
-
-mysqli_close($con);
-
-?>

@@ -1,11 +1,16 @@
 <?php
-error_reporting(0);
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
+    http_response_code(404);
+    exit;
+}
+require_once __DIR__ . '/../../includes/security.php';
+require_once __DIR__ . '/dbconnection.php';
 ?>
 <header class="header fixed-top clearfix">
 <!--logo start-->
 <div class="brand">
     <a href="dashboard.php" class="logo">
-        Owner | UrbanNest
+        UrbanNest Owner
     </a>
     <div class="sidebar-toggle-box">
         <div class="fa fa-bars"></div>
@@ -18,8 +23,8 @@ error_reporting(0);
         <!-- settings start -->
               <!-- inbox dropdown start-->
                 <?php
-        $oid=$_SESSION['pgasoid'];       
-$ret1=mysqli_query($con,"select tblbookpg.ID,tbluser.FullName from tblbookpg join tbluser on tbluser.ID=tblbookpg.Userid join tblpg on tblpg.ID=tblbookpg.Pgid where tblbookpg.Status is null and tblpg.OwnerID='$oid' ");
+        $oid = current_owner_id();
+$ret1=mysqli_query($con,"select tblbookpg.ID,tbluser.FullName from tblbookpg join tbluser on tbluser.ID=tblbookpg.Userid join tblpg on tblpg.ID=tblbookpg.Pgid where tblbookpg.Status is null and tblpg.OwnerID=" . $oid);
 $num=mysqli_num_rows($ret1);
 
 ?>  
@@ -27,13 +32,13 @@ $num=mysqli_num_rows($ret1);
         <li id="header_inbox_bar" class="dropdown">
             <a data-toggle="dropdown" class="dropdown-toggle" href="#">
                 <i class="fa fa-envelope-o"></i>
-                <span class="badge bg-important"><?php echo $num;?></span>
+                <span class="badge bg-important"><?php echo (int) $num; ?></span>
             </a>
  
 
             <ul class="dropdown-menu extended inbox">
                 <li>
-                    <p class="red">You have <?php echo $num;?> New Bookings</p>
+                    <p class="red">You have <?php echo (int) $num; ?> New Bookings</p>
                 </li>
 <?php if($num>0){
 while($result=mysqli_fetch_array($ret1))
@@ -42,7 +47,7 @@ while($result=mysqli_fetch_array($ret1))
     
                 <li>
 <span class="subject">
-<span class="from"><a class="dropdown-item" href="view-requestdetails.php?viewid=<?php echo $result['ID'];?>">New Booking Received from <?php echo $result['FullName'];?></a></span>
+<span class="from"><a class="dropdown-item" href="view-requestdetails.php?viewid=<?php echo h($result['ID']); ?>">New Booking Received from <?php echo h($result['FullName']); ?></a></span>
 </span>
                 </li>
 <?php } }  else {?>
@@ -66,14 +71,13 @@ while($result=mysqli_fetch_array($ret1))
         <li class="dropdown">
             <a data-toggle="dropdown" class="dropdown-toggle" href="#">
                 <?php
-$pownerid=$_SESSION['pgasoid'];
-$ret=mysqli_query($con,"select FullName from  tblowner where ID='$pownerid'");
+$ret=mysqli_query($con,"select FullName from tblowner where ID=" . current_owner_id());
 $row=mysqli_fetch_array($ret);
-$name=$row['FullName'];
+$name=$row['FullName'] ?? '';
 
 ?>
                 <img alt="" src="images/2.png">
-                <span class="username"><?php echo $name; ?></span>
+                <span class="username"><?php echo h($name); ?></span>
                 <b class="caret"></b>
             </a>
             <ul class="dropdown-menu extended logout">

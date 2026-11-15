@@ -1,18 +1,19 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
 include_once('includes/roommate-functions.php');
 
-if (empty($_SESSION['pgasuid'])) { header('location: signin.php'); exit; }
-$uid = (int)$_SESSION['pgasuid'];
+$uid = require_user('signin.php');
 
-$req_id = (int)($_GET['id'] ?? 0);
-$action = trim($_GET['action'] ?? '');
+$req_id = (int)($_REQUEST['id'] ?? 0);
+$action = trim((string)($_REQUEST['action'] ?? ''));
 
-if (!$req_id || !in_array($action, ['accept','reject','cancel'])) {
-    header('location: my-matches.php');
-    exit;
+if (!$req_id || !in_array($action, ['accept','reject','cancel'], true)) {
+    redirect_to('my-matches.php');
+}
+if (!csrf_valid()) {
+    $_SESSION['rm_flash'] = ['type'=>'danger','msg'=>'Your session expired. Please try again.'];
+    redirect_to('my-matches.php');
 }
 
 // Fetch the request and validate ownership
@@ -24,8 +25,7 @@ $req = mysqli_fetch_assoc($result);
 
 if (!$req) {
     $_SESSION['rm_flash'] = ['type'=>'danger','msg'=>'Request not found.'];
-    header('location: my-matches.php');
-    exit;
+    redirect_to('my-matches.php');
 }
 
 $allowed = false;
@@ -38,10 +38,6 @@ switch ($action) {
         if ($req['receiver_id'] == $uid && $req['status'] === 'Pending') {
             $allowed = true;
             $new_status = $action === 'accept' ? 'Accepted' : 'Rejected';
-            // If accepting, create conversation
-            if ($new_status === 'Accepted') {
-                getOrCreateConversation($con, $uid, $req['sender_id']);
-            }
         }
         break;
     case 'cancel':
@@ -57,10 +53,12 @@ if ($allowed && $new_status) {
     $stmt2 = mysqli_prepare($con, "UPDATE roommate_requests SET status = ?, updated_at = NOW() WHERE id = ?");
     mysqli_stmt_bind_param($stmt2, 'si', $new_status, $req_id);
     mysqli_stmt_execute($stmt2);
+    if ($new_status === 'Accepted') {
+        getOrCreateConversation($con, $uid, $req['sender_id']);
+    }
     $_SESSION['rm_flash'] = ['type'=>'success','msg'=>'Request ' . strtolower($new_status) . '.'];
 } else {
     $_SESSION['rm_flash'] = ['type'=>'danger','msg'=>'You are not authorized to perform this action.'];
 }
 
-header('location: my-matches.php');
-exit;
+redirect_to('my-matches.php');

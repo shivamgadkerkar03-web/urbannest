@@ -1,57 +1,60 @@
 <?php
-session_start();
-include_once('connect.php');
+require_once __DIR__ . '/includes/market.php';
 
-$msg = '';
+$uid = require_user('../signin.php?redirect=resellNation/seller.php');
+
 $err = '';
+$old = ['productName' => '', 'category' => '', 'brand' => '', 'size' => '', 'description' => '', 'price' => '', 'location' => ''];
 
-if (isset($_POST["submit"])) {
-    if (empty($_SESSION['pgasuid'])) {
-        $err = "You must be signed in to post an item.";
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    foreach ($old as $key => $_) {
+        $old[$key] = is_string($_POST[$key] ?? null) ? $_POST[$key] : '';
+    }
+
+    if (empty($_POST) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        // post_max_size exceeded: PHP drops the whole body
+        $err = 'The image is too large. Please choose a smaller photo (max 5 MB).';
+    } elseif (!csrf_valid()) {
+        $err = 'Your session has expired. Please submit the form again.';
     } else {
-        $productName = mysqli_real_escape_string($con, $_POST["productName"]);
-        $category = mysqli_real_escape_string($con, $_POST["category"]);
-        $brand = mysqli_real_escape_string($con, $_POST["brand"]);
-        $size = mysqli_real_escape_string($con, $_POST["size"]);
-        $description = mysqli_real_escape_string($con, $_POST["description"]);
-        $price = (int)$_POST["price"];
-        $location = mysqli_real_escape_string($con, $_POST["location"]);
+        [$clean, $err] = un_validate_product($old);
+    }
 
-        if (empty($_FILES["images"]["name"])) {
-            $err = "Please select an image for your listing.";
+    if ($err === '') {
+        $upload = store_uploaded_image($_FILES['images'] ?? [], UN_UPLOAD_DIR, UN_MAX_IMAGE_BYTES);
+        protect_upload_dir(UN_UPLOAD_DIR);
+        if (!$upload['ok']) {
+            $err = $upload['error'];
         } else {
-            $targetDir = "upload/";
-            $fileName = $_FILES["images"]["name"];
-            $fileType = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-            $allowed = ['jpg', 'jpeg', 'png', 'webp'];
-
-            if (!in_array($fileType, $allowed)) {
-                $err = "Only JPG, JPEG, PNG, and WEBP image files are allowed.";
-            } else {
-                $uniqueFileName = uniqid() . '.' . $fileType;
-                $targetFilePath = $targetDir . $uniqueFileName;
-
-                if (move_uploaded_file($_FILES["images"]["tmp_name"], $targetFilePath)) {
-                    $query = "INSERT INTO product (productName, category, brand, size, description, price, sellersName, location, images, userId) 
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    $stmt = mysqli_stmt_init($con);
-                    if (mysqli_stmt_prepare($stmt, $query)) {
-                        $sellerName = $_SESSION['FullName'] ?? 'Resident';
-                        $uid = (int)$_SESSION['pgasuid'];
-                        mysqli_stmt_bind_param($stmt, "sssssssssi", $productName, $category, $brand, $size, $description, $price, $sellerName, $location, $uniqueFileName, $uid);
-                        if (mysqli_stmt_execute($stmt)) {
-                            mysqli_stmt_close($stmt);
-                            echo "<script>alert('Your item has been listed successfully!'); window.location.href = 'search.php';</script>";
-                            exit;
-                        } else {
-                            $err = "Database error: " . mysqli_stmt_error($stmt);
-                        }
-                    } else {
-                        $err = "Failed to prepare database statement.";
-                    }
-                } else {
-                    $err = "Failed to upload image file.";
-                }
+            $sellerName = (string) ($_SESSION['FullName'] ?? '');
+            if ($sellerName === '') {
+                $sellerName = un_user_name($con, $uid);
+            }
+            $sellerName = mb_substr($sellerName, 0, 255, 'UTF-8');
+            try {
+                $stmt = mysqli_prepare($con, 'INSERT INTO product (productName, category, brand, size, description, price, sellersName, location, images, userId)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    'sssssisssi',
+                    $clean['productName'],
+                    $clean['category'],
+                    $clean['brand'],
+                    $clean['size'],
+                    $clean['description'],
+                    $clean['price'],
+                    $sellerName,
+                    $clean['location'],
+                    $upload['name'],
+                    $uid
+                );
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+                redirect_to('myadd.php?listed=1');
+            } catch (Throwable $e) {
+                error_log('seller.php: ' . $e->getMessage());
+                un_delete_image($upload['name']);
+                $err = 'Could not save your listing. Please try again.';
             }
         }
     }
@@ -102,12 +105,12 @@ if (isset($_POST["submit"])) {
         }
 
         .form-control:focus, .form-select:focus {
-            border-color: #ff3333;
+            border-color: #e63946;
             box-shadow: 0 0 0 0.2rem rgba(255, 51, 51, 0.15);
         }
 
         .btn-post-item {
-            background: #ff3333;
+            background: #e63946;
             color: #fff;
             font-weight: 600;
             border: none;
@@ -118,7 +121,7 @@ if (isset($_POST["submit"])) {
         }
 
         .btn-post-item:hover {
-            background: #cc0000;
+            background: #c1121f;
             color: #fff;
         }
 
@@ -130,6 +133,7 @@ if (isset($_POST["submit"])) {
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
         }
     </style>
+    <link rel="stylesheet" href="../css/navbar.css">
 </head>
 
 <body>
@@ -153,18 +157,10 @@ if (isset($_POST["submit"])) {
             </a>
         </div>
 
-        <?php if (!empty($err)): ?>
+        <?php if ($err !== ''): ?>
             <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
-                <?= htmlspecialchars($err) ?>
+                <?= h($err) ?>
                 <button type="button" class="btn-close shadow-none" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
-
-        <?php if (empty($_SESSION['pgasuid'])): ?>
-            <div class="alert alert-warning border-0 shadow-sm rounded-4 p-4 mb-4 text-center">
-                <h5 class="fw-bold mb-2">Sign in to List Items</h5>
-                <p class="text-muted small mb-3">You must be logged in to your UrbanNest account so interested buyers can message you.</p>
-                <a href="../signin.php" class="btn btn-danger rounded-pill px-4 fw-semibold" style="background:#ff3333; border:none;">Sign In Now</a>
             </div>
         <?php endif; ?>
 
@@ -173,9 +169,11 @@ if (isset($_POST["submit"])) {
             <div class="col-lg-7">
                 <div class="seller-form-card">
                     <form action="" method="post" enctype="multipart/form-data" id="sellerForm">
+                        <?= csrf_field() ?>
                         <div class="mb-3">
                             <label for="productName" class="form-label">Item Title <span class="text-danger">*</span></label>
-                            <input type="text" id="productName" name="productName" class="form-control"
+                            <input type="text" id="productName" name="productName" class="form-control" maxlength="255"
+                                value="<?= h($old['productName']) ?>"
                                 placeholder="e.g. Ergonomic Study Chair, HP Gaming Laptop, Mini Fridge" required>
                         </div>
 
@@ -184,44 +182,50 @@ if (isset($_POST["submit"])) {
                                 <label for="category" class="form-label">Category <span class="text-danger">*</span></label>
                                 <select class="form-select" id="category" name="category" required>
                                     <option value="">Select Category</option>
-                                    <option value="F">Furniture</option>
-                                    <option value="E">Electronics &amp; Appliances</option>
-                                    <option value="L">Lifestyle &amp; Decor</option>
+                                    <option value="F"<?= $old['category'] === 'F' ? ' selected' : '' ?>>Furniture</option>
+                                    <option value="E"<?= $old['category'] === 'E' ? ' selected' : '' ?>>Electronics &amp; Appliances</option>
+                                    <option value="L"<?= $old['category'] === 'L' ? ' selected' : '' ?>>Lifestyle &amp; Decor</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
                                 <label for="brand" class="form-label">Brand / Make</label>
-                                <input type="text" id="brand" name="brand" class="form-control" placeholder="e.g. IKEA, HP, Samsung, Nilkamal">
+                                <input type="text" id="brand" name="brand" class="form-control" maxlength="255"
+                                    value="<?= h($old['brand']) ?>" placeholder="e.g. IKEA, HP, Samsung, Nilkamal">
                             </div>
                         </div>
 
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
                                 <label for="price" class="form-label">Price (₹) <span class="text-danger">*</span></label>
-                                <input type="number" id="price" name="price" class="form-control" placeholder="e.g. 1500" min="50" required>
+                                <input type="number" id="price" name="price" class="form-control" placeholder="e.g. 1500"
+                                    value="<?= h($old['price']) ?>" min="0" max="99999999" step="1" required>
                             </div>
                             <div class="col-md-6">
                                 <label for="size" class="form-label">Size / Dimensions</label>
-                                <input type="text" id="size" name="size" class="form-control" placeholder="e.g. Medium, 4x2 ft, Standard">
+                                <input type="text" id="size" name="size" class="form-control" maxlength="90"
+                                    value="<?= h($old['size']) ?>" placeholder="e.g. Medium, 4x2 ft, Standard">
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label for="location" class="form-label">Pickup Location <span class="text-danger">*</span></label>
-                            <input type="text" id="location" name="location" class="form-control"
+                            <input type="text" id="location" name="location" class="form-control" maxlength="255"
+                                value="<?= h($old['location']) ?>"
                                 placeholder="e.g. Porvorim, Panaji, Near University Campus" required>
                         </div>
 
                         <div class="mb-3">
                             <label for="description" class="form-label">Description &amp; Condition <span class="text-danger">*</span></label>
-                            <textarea id="description" name="description" class="form-control" rows="4"
-                                placeholder="Mention condition (e.g. gently used, 6 months old), color, meetup preferences, or reason for selling..." required></textarea>
+                            <textarea id="description" name="description" class="form-control" rows="4" maxlength="255"
+                                placeholder="Mention condition (e.g. gently used, 6 months old), color, meetup preferences, or reason for selling..." required><?= h($old['description']) ?></textarea>
+                            <small class="text-muted">Up to 255 characters.</small>
                         </div>
 
                         <div class="mb-4">
                             <label for="images" class="form-label">Item Photo <span class="text-danger">*</span></label>
-                            <input type="file" class="form-control" name="images" id="images" accept="image/*" required>
-                            <small class="text-muted">High-quality clear photos receive 3x more buyer inquiries.</small>
+                            <input type="file" class="form-control" name="images" id="images"
+                                accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif" required>
+                            <small class="text-muted">JPG, PNG, WebP or GIF, up to 5 MB. High-quality clear photos receive 3x more buyer inquiries.</small>
                         </div>
 
                         <div class="form-check mb-4">
@@ -231,15 +235,9 @@ if (isset($_POST["submit"])) {
                             </label>
                         </div>
 
-                        <?php if (!empty($_SESSION['pgasuid'])): ?>
-                            <button type="submit" name="submit" value="Submit" class="btn-post-item">
-                                Publish Listing to Urban Nation &rarr;
-                            </button>
-                        <?php else: ?>
-                            <a href="../signin.php" class="btn-post-item text-center text-decoration-none">
-                                Sign In to Post Listing &rarr;
-                            </a>
-                        <?php endif; ?>
+                        <button type="submit" name="submit" value="Submit" class="btn-post-item">
+                            Publish Listing to Urban Nation &rarr;
+                        </button>
                     </form>
                 </div>
             </div>
