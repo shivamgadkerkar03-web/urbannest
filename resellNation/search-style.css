@@ -1,0 +1,192 @@
+h1 {
+    font-size: 50px;
+    line-height: 64px;
+    color: #222;
+}
+
+/*h2 {
+    font-size: 46px;
+    line-height: 54px;
+    color: white;
+}
+*/
+
+h4 {
+    font-size: 20px;
+    color: #222;
+}
+
+h6 {
+    font-weight: 700;
+    font-size: 12px;
+}
+
+
+section-p1 {
+    padding: 40px 80px;
+}
+
+section-m1 {
+    margin: 40px 0;
+}
+
+
+
+#header {
+    display: block;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 80px;
+    background-color:#F5CE76;
+    box-shadow:0 5px 15px rgba(0, 0, 0, 0.06);
+    padding-top: 0px;
+    padding-left: 0px;
+    padding-bottom: 0px;
+    z-index: 999;
+    position: sticky;
+    top: 0;
+    left: 0;
+
+    
+
+}
+
+.home{
+    margin-left: 55%;
+}
+
+#resale-logo{
+    height: 100px;
+}
+#navbar {
+  position: relative;
+    display: flex;
+    align-items: left;
+    justify-content: left;
+    background-color: #F5CE76;
+    margin-bottom: 0%;
+}
+
+#navbar li {
+    list-style: none;
+    padding: 30px;
+    padding-top: 4%;
+    background-color: #F5CE76;
+    padding-right: 0%;
+}
+
+#navbar li a {
+    text-decoration: none;
+    font-size: 20px;
+    font-weight: 608;
+    color: #000000; 
+    transition: 0.3s ease;
+    margin-top: 30%;
+    padding-top: 50%;
+    width: 60px;
+   
+    
+}
+
+#navbar li a:hover,
+#navbar li a.active {
+    color: #108178; 
+}
+
+
+h2#search{
+    position: relative;
+    text-align: center center;
+    font-size:38px;
+    width: 30%;
+    left:35%;
+    margin-top: 0%;
+    margin-bottom: 1%;
+}
+
+img#umbrella-icon{
+    position: relative;
+    width: 20%;
+    left:56%;
+    top: 60px;
+}
+
+img#cart-icon{
+    position:absolute;
+    width: 13%;
+    top:55%;
+    left: 25%;
+}
+
+img#bags-icon{
+    position: absolute;
+    width: 8%;
+    top: 62%;
+    left: 60%;
+}
+/*---------------------------------------*/
+#search-bar{
+    position: relative;
+    width: 19%;
+    display: flex;
+    left: 38%;
+    align-items: left;
+    padding: 14px;
+    border: solid lightslategray;
+    border-radius: 28px;
+    background: #f6f6f6;
+    transition: box-shadow 0.25s;
+}
+
+#search-bar:hover{
+    border:solid rgb(105, 100, 100);
+}
+
+.search-input {
+    font-size: 16px;
+    font-family: 'Lexend', sans-serif;
+    color: #333333;
+    margin-left: 14px;
+    outline: none;
+    border: none;
+    background: transparent;
+    width: 80%;
+}
+
+.search-input:focus-within {
+    background: rgba(255, 255, 255, 0.879);
+}
+
+.search-input::placeholder,
+.search-icon {
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.material-symbols-outlined {
+    color: darkgray;
+  font-variation-settings:
+  'FILL' 0,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24
+}
+
+#search-btn{
+    position: absolute;
+    border: solid whitesmoke 2px;
+    border-radius: 20px;
+    left:44.5%;
+    top: 75%;
+    width: 8%;
+    height: 5%;
+    background-color: #FDE6B4;
+    font-size: medium;
+}
+#search-btn:hover{
+    cursor: pointer;
+    background-color: #F5CE76;
+    font-weight: bold;
+}
+#search-btn:active{
+    background-color: #FDE6B4;
+}
