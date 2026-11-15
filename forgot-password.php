@@ -1,76 +1,52 @@
 <?php
-session_start();
-error_reporting(E_ALL);
+require_once __DIR__ . '/includes/security.php';
+if (current_user_id() > 0) {
+	redirect_to('index.php');
+}
 include ('includes/dbconnection.php');
 
-$msg = ''; // Initialize the message variable
+$msg = '';
+$maxAttempts = 5;
 
 if (isset($_POST['submit'])) {
-	$contactno = mysqli_real_escape_string($con, $_POST['mobilenumber']);
-	$email = mysqli_real_escape_string($con, $_POST['email']);
+	csrf_check();
+	$attempts = (int) ($_SESSION['reset_attempts'] ?? 0);
+	$contactno = trim((string) ($_POST['mobilenumber'] ?? ''));
+	$email = trim((string) ($_POST['email'] ?? ''));
 
-	// Check if email and mobile number are provided
-	if (empty($email) || empty($contactno)) {
+	if ($attempts >= $maxAttempts) {
+		$msg = "Too many attempts. Please try again later.";
+	} elseif ($email === '' || $contactno === '') {
 		$msg = "Please enter both email and mobile number.";
 	} else {
-		// Check if the provided email and mobile number exist in the database
-		$query = mysqli_query($con, "SELECT ID FROM tbluser WHERE Email='$email' AND MobileNumber='$contactno'");
-		$rowCount = mysqli_num_rows($query);
+		$_SESSION['reset_attempts'] = $attempts + 1;
+		unset($_SESSION['reset_uid']);
 
-		if ($rowCount > 0) {
-			$_SESSION['mobilenumber'] = $contactno;
-			$_SESSION['email'] = $email;
-			header('location:reset-password.php');
-			exit; // Make sure to exit after redirecting
-		} else {
-			$msg = "Invalid email or mobile number. Please try again.";
+		$stmt = mysqli_prepare($con, "SELECT ID FROM tbluser WHERE Email = ? AND MobileNumber = ? LIMIT 1");
+		mysqli_stmt_bind_param($stmt, 'ss', $email, $contactno);
+		mysqli_stmt_execute($stmt);
+		$row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+		mysqli_stmt_close($stmt);
+
+		if ($row) {
+			session_regenerate_id(true);
+			$_SESSION['reset_uid'] = (int) $row['ID'];
+			unset($_SESSION['reset_attempts']);
+			redirect_to('reset-password.php');
 		}
+		$msg = "Invalid email or mobile number. Please try again.";
 	}
 }
 ?>
-
-<?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
-
-if (isset($_POST['submit'])) {
-	$contactno = $_POST['contactno'];
-	$email = $_POST['email'];
-
-	$query = mysqli_query($con, "select ID from tblowner where  Email='$email' and MobileNumber='$contactno' ");
-	$ret = mysqli_fetch_array($query);
-	if ($ret > 0) {
-		$_SESSION['contactno'] = $contactno;
-		$_SESSION['email'] = $email;
-		header('location:reset-password.php');
-	} else {
-		$msg = "Invalid Details. Please try again.";
-	}
-}
-?>
-
-
 <!DOCTYPE html>
-<html lang="zxx" class="no-js">
+<html lang="en" class="no-js">
 
 <head>
+	<?php include __DIR__ . '/includes/head.php'; ?>
 
 	<title>UrbanNest || User Forget Password</title>
 
-	<link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-	<!--
-			CSS
-			============================================= -->
 
-	<link rel="stylesheet" href="css/linearicons.css">=
-	<link rel="stylesheet" href="css/font-awesome.min.css">
-	<link rel="stylesheet" href="css/nice-select.css">
-	<link rel="stylesheet" href="css/ion.rangeSlider.css" />
-	<link rel="stylesheet" href="css/ion.rangeSlider.skinFlat.css" />
-	<link rel="stylesheet" href="css/bootstrap.css">
-	<link rel="stylesheet" href="css/owl.carousel.css">
-	<link rel="stylesheet" href="css/main.css">
 
 </head>
 
@@ -104,15 +80,14 @@ if (isset($_POST['submit'])) {
 
 	<section class="contact-page-area section-gap">
 		<div class="container">
-			<p style="text-align: center;color: red;font-size: 30px"><strong>Forgot Password</strong></p>
-			<div class="row mt-80">
-				<p style="font-size:16px; color:red" align="center">
-					<?php if ($msg) {
-						echo $msg;
-					} ?>
-				</p>
+			<div class="row justify-content-center">
+				<div class="col-xl-5 col-lg-6 col-md-8">
+				<div class="auth-card">
+				<h2 class="text-center mb-4">Forgot Password</h2>
+				<?php if ($msg) { ?><div class="alert alert-info py-2 text-center"><?= h($msg) ?></div><?php } ?>
 				<div class="col-lg-12">
 					<form class="row contact_form" action="" method="post" id="" name="login">
+						<?= csrf_field() ?>
 						<div class="col-md-12">
 
 
@@ -130,14 +105,16 @@ if (isset($_POST['submit'])) {
 
 						</div>
 
-						<div class="col-md-6 text-left">
+						<div class="col-12">
 
-							<button type="submit" value="login" name="submit" class="btn primary-btn">Reset</button>
+							<button type="submit" value="login" name="submit" class="btn btn-primary w-100">Reset</button>
 						</div>
 
 
 					</form>
 
+				</div>
+				</div>
 				</div>
 			</div>
 		</div>
@@ -151,21 +128,6 @@ if (isset($_POST['submit'])) {
 
 
 
-	<script src="js/vendor/jquery-2.2.4.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js"
-		integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4"
-		crossorigin="anonymous"></script>
-	<script type="text/javascript"
-		src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBhOdIF3Y9382fqJYt5I_sswSrEw5eihAA"></script>
-	<script src="js/vendor/bootstrap.min.js"></script>
-	<script src="js/jquery.ajaxchimp.min.js"></script>
-	<script src="js/jquery.nice-select.min.js"></script>
-	<script src="js/jquery.sticky.js"></script>
-	<script src="js/ion.rangeSlider.js"></script>
-	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-	<script src="js/jquery.magnific-popup.min.js"></script>
-	<script src="js/owl.carousel.min.js"></script>
-	<script src="js/main.js"></script>
 </body>
 
 </html>

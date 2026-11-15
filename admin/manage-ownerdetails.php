@@ -1,21 +1,25 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid'] == 0)) {
-  header('location:logout.php');
-} //else {
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
+include('includes/dbconnection.php');
+
 
 if (isset($_GET['delid'])) {
-  $delid = $_GET['delid'];
-  // Perform deletion query
-  $delete_query = mysqli_query($con, "DELETE FROM tblowner WHERE ID = '$delid'");
-  if ($delete_query) {
+  $delid = (int) $_GET['delid'];
+  $ok = false;
+  if (csrf_valid() && $delid > 0) {
+    $stmt = mysqli_prepare($con, "DELETE FROM tblowner WHERE ID = ?");
+    mysqli_stmt_bind_param($stmt, 'i', $delid);
+    $ok = mysqli_stmt_execute($stmt) && mysqli_stmt_affected_rows($stmt) > 0;
+    mysqli_stmt_close($stmt);
+  }
+  if ($ok) {
     echo "<script>alert('Record deleted successfully.');</script>";
-    echo "<script>window.location.href = 'manage-ownerdetails.php';</script>";
   } else {
     echo "<script>alert('Failed to delete record. Please try again.');</script>";
   }
+  echo "<script>window.location.href = 'manage-ownerdetails.php';</script>";
+  exit;
 }
 
 ?>
@@ -25,6 +29,7 @@ if (isset($_GET['delid'])) {
 
 <head>
   <title>UrbanNest || Owner Details </title>
+  <meta name="csrf-token" content="<?php echo h(csrf_token()); ?>">
   <script type="application/x-javascript">
         addEventListener("load", function() {
           setTimeout(hideURLbar, 0);
@@ -49,6 +54,9 @@ if (isset($_GET['delid'])) {
   <link href="css/font-awesome.css" rel="stylesheet">
   <!-- //font-awesome icons -->
   <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 
 <body>
@@ -85,7 +93,9 @@ if (isset($_GET['delid'])) {
                     <th>Mobile Number</th>
                     <th>Registration Date</th>
                     <th>Status</th>
-                    <th data-breakpoints="xs">Action</th>
+                    <th>Verification File</th>
+                    <th data-breakpoints="xs">Activate</th>
+                    <th data-breakpoints="xs">Deactivate</th>
 
 
                   </tr>
@@ -103,60 +113,70 @@ if (isset($_GET['delid'])) {
                       </td>
 
                       <td>
-                        <?php echo $row['FullName']; ?>
+                        <?php echo h($row['FullName']); ?>
                       </td>
                       <td>
-                        <?php echo $row['MobileNumber']; ?>
+                        <?php echo h($row['MobileNumber']); ?>
                       </td>
                       <td>
-                        <?php echo $row['RegDate']; ?>
+                        <?php echo h($row['RegDate']); ?>
                       </td>
-                      <td
+                      <td id="status-<?php echo (int) $row['ID']; ?>"
                         style="background-color: <?php echo $row['status'] ? "#0b3" : "red"; ?>;color: white;text-align: center;">
                         <?php echo $row['status'] ? "Active" : "Inactive"; ?>
                       </td>
-                      <td><a href="../owner/<?php echo $row['VerificationFile']; ?>">Verification File</a></td>
                       <td>
-                        <a class="btn btn-primary" id="act-<?php echo $row['ID']; ?>-1" onclick="">Active</a>
-                        <!-- <a href="edit-ownerdetails.php?editid=<?php //echo $row['ID']; ?>" class="btn btn-primary">Edit</a> -->
+                        <?php if (!empty($row['VerificationFile'])) { ?>
+                          <a href="verification-file.php?id=<?php echo (int) $row['ID']; ?>" target="_blank">Verification File</a>
+                        <?php } else { ?>
+                          Not uploaded
+                        <?php } ?>
                       </td>
                       <td>
-                        <a class="btn btn-danger" id="inact-<?php echo $row['ID']; ?>-0" onclick="">Inactive</a>
-                        <!-- <a href="?delid=<?php //echo $row['ID']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this record?')">Delete</a> -->
+                        <a class="btn btn-primary js-owner-status" href="javascript:;" data-id="<?php echo (int) $row['ID']; ?>" data-status="1">Active</a>
+                      </td>
+                      <td>
+                        <a class="btn btn-danger js-owner-status" href="javascript:;" data-id="<?php echo (int) $row['ID']; ?>" data-status="0">Inactive</a>
                       </td>
 
                     </tr>
                     <?php
-                    // $cnt = $cnt + 1;
+                    $cnt = $cnt + 1;
                   } ?>
                 </tbody>
               </table>
 
               <script>
                 document.getElementById("allOwn").addEventListener('click', (event) => {
-                  // console.log(event.target.tagName);
-                  if (event.target.tagName == "A") {
-                    console.log(event.target.id);
-                    const [type, id, status] = event.target.id.split('-');
-
-                    fetch('./php/updateStatus.php', {
-                      method: 'POST',
-                      body: JSON.stringify({ id: id, status: status })
-                    })
-                      .then(response => {
-                        if (response.ok) {
-                          return response.text();
-                        }
-                        throw new Error('Network response was not ok.');
-                      })
-                      .then(text => {
-                        console.log(text);
-                      })
-                      .catch(error => {
-                        console.error('Error:', error);
-                      });
-
+                  const btn = event.target.closest('.js-owner-status');
+                  if (!btn) {
+                    return;
                   }
+                  event.preventDefault();
+                  const id = btn.dataset.id;
+                  const status = parseInt(btn.dataset.status, 10);
+                  const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+                  fetch('./php/updateStatus.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+                    body: JSON.stringify({ id: id, status: status })
+                  })
+                    .then(response => response.json())
+                    .then(data => {
+                      if (!data.success) {
+                        alert(data.message || 'Could not update the owner.');
+                        return;
+                      }
+                      const cell = document.getElementById('status-' + id);
+                      if (cell) {
+                        cell.textContent = status === 1 ? 'Active' : 'Inactive';
+                        cell.style.backgroundColor = status === 1 ? '#0b3' : 'red';
+                      }
+                    })
+                    .catch(() => {
+                      alert('Could not update the owner. Please try again.');
+                    });
                 });
               </script>
 
@@ -183,4 +203,3 @@ if (isset($_GET['delid'])) {
 </body>
 
 </html>
-<?php ?>

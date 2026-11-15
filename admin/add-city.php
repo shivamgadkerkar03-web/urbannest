@@ -1,26 +1,24 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid'] == 0)) {
-    header('location:logout.php');
-} else {
-    if (isset($_POST['submit'])) {
-        $stateid = $_POST['statename'];
-        $city = $_POST['city'];
-        $query = mysqli_query($con, "insert into  tblcity(StateID,City) value('$stateid','$city')");
-        if ($query) {
-            echo "<script>alert('City has been added.);</script>";
-            echo "<script>window.location.href='manage-city.php'</script>";
-        } else {
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
+include('includes/dbconnection.php');
 
-            echo "<script>alert('Something Went Wrong. Please try again);</script>";
-            echo "<script>window.location.href='manage-city.php'</script>";
-        }
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $stateid = (int) ($_POST['statename'] ?? 0);
+    $city = trim((string) ($_POST['city'] ?? ''));
 
-
+    $stmt = mysqli_prepare($con, "INSERT INTO tblcity(StateID, City) VALUES (?, ?)");
+    mysqli_stmt_bind_param($stmt, 'is', $stateid, $city);
+    if ($stateid > 0 && $city !== '' && mysqli_stmt_execute($stmt)) {
+        echo "<script>alert('City has been added.');</script>";
+    } else {
+        echo "<script>alert('Something Went Wrong. Please try again.');</script>";
     }
-    ?>
+    echo "<script>window.location.href='manage-city.php'</script>";
+    exit;
+}
+?>
 
     <!DOCTYPE html>
 
@@ -44,7 +42,10 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
         <link href="css/font-awesome.css" rel="stylesheet">
         <!-- //font-awesome icons -->
         <script src="js/jquery2.0.3.min.js"></script>
-    </head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
+</head>
 
     <body>
         <section id="container">
@@ -74,12 +75,11 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
                                     </header>
                                     <div class="panel-body">
                                         <div class="form">
-                                            <p style="font-size:16px; color:red" align="center"> <?php if ($msg) {
-                                                echo $msg;
-                                            } ?> </p>
+                                            <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>
 
 
                                             <form class="cmxform form-horizontal " method="post" action="">
+                                                <?php echo csrf_field(); ?>
                                                 <div class="form-group ">
                                                     <label for="adminname" class="control-label col-lg-3">State</label>
                                                     <div class="col-lg-6">
@@ -89,8 +89,8 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
                                                             <?php $query = mysqli_query($con, "select * from tblstate");
                                                             while ($row = mysqli_fetch_array($query)) {
                                                                 ?>
-                                                                <option value="<?php echo $row['ID']; ?>">
-                                                                    <?php echo $row['StateName']; ?></option>
+                                                                <option value="<?php echo (int) $row['ID']; ?>">
+                                                                    <?php echo h($row['StateName']); ?></option>
                                                             <?php } ?>
                                                         </select>
                                                     </div>
@@ -141,4 +141,3 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
     </body>
 
     </html>
-<?php } ?>

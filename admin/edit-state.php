@@ -1,26 +1,24 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  } else{
-    if(isset($_POST['submit']))
-  {
-    $statename=$_POST['statename'];
-     $eid=$_GET['editid'];
-    $query=mysqli_query($con, "update tblstate set StateName ='$statename' where ID=$eid");
-    if ($query) {
-    $msg="State has been updated.";
-  }
-  else
-    {
-      $msg="Something Went Wrong. Please try again";
-    }
 
-  
+$eid = (int) ($_GET['editid'] ?? 0);
+$msg = '';
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $statename = trim((string) ($_POST['statename'] ?? ''));
+
+    $stmt = mysqli_prepare($con, "UPDATE tblstate SET StateName = ? WHERE ID = ?");
+    mysqli_stmt_bind_param($stmt, 'si', $statename, $eid);
+    if ($statename !== '' && mysqli_stmt_execute($stmt)) {
+        $msg = "State has been updated.";
+    } else {
+        $msg = "Something Went Wrong. Please try again";
+    }
+    mysqli_stmt_close($stmt);
 }
-  ?>
+?>
 
 <!DOCTYPE html>
 <head>
@@ -39,6 +37,9 @@ if (strlen($_SESSION['pgasaid']==0)) {
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -68,15 +69,13 @@ if (strlen($_SESSION['pgasaid']==0)) {
                         </header>
                         <div class="panel-body">
                             <div class="form">
-                                 <p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
+                                 <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>
 
    
                                 <form class="cmxform form-horizontal " method="post" action="">
+                                    <?php echo csrf_field(); ?>
                                     <?php
- $cid=$_GET['editid'];
-$ret=mysqli_query($con,"select * from tblstate where ID='$cid'");
+$ret=mysqli_query($con,"select * from tblstate where ID=" . $eid);
 $cnt=1;
 while ($row=mysqli_fetch_array($ret)) {
 
@@ -84,7 +83,7 @@ while ($row=mysqli_fetch_array($ret)) {
                                     <div class="form-group ">
                                         <label for="adminname" class="control-label col-lg-3">State</label>
                                         <div class="col-lg-6">
-                                            <input class=" form-control" id="statename" name="statename" type="text" required="true" value="<?php  echo $row['StateName'];?>">
+                                            <input class=" form-control" id="statename" name="statename" type="text" required="true" value="<?php echo h($row['StateName']); ?>">
                                         </div>
                                     </div>
                                     <?php } ?>
@@ -123,4 +122,3 @@ while ($row=mysqli_fetch_array($ret)) {
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

@@ -1,27 +1,25 @@
- <?php
-session_start();
-error_reporting(0);
+<?php
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  } else{
-    if(isset($_POST['submit']))
-  {
-    $stateid=$_POST['statename'];
-    $eid=$_GET['editid'];
-    $city=$_POST['city'];
-    $query=mysqli_query($con, "update tblcity set StateID='$stateid',City='$city' where ID='$eid'");
-    if ($query) {
-    $msg="City has been Updated.";
-  }
-  else
-    {
-      $msg="Something Went Wrong. Please try again";
-    }
 
-  
+$eid = (int) ($_GET['editid'] ?? 0);
+$msg = '';
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $stateid = (int) ($_POST['statename'] ?? 0);
+    $city = trim((string) ($_POST['city'] ?? ''));
+
+    $stmt = mysqli_prepare($con, "UPDATE tblcity SET StateID = ?, City = ? WHERE ID = ?");
+    mysqli_stmt_bind_param($stmt, 'isi', $stateid, $city, $eid);
+    if ($stateid > 0 && $city !== '' && mysqli_stmt_execute($stmt)) {
+        $msg = "City has been Updated.";
+    } else {
+        $msg = "Something Went Wrong. Please try again";
+    }
+    mysqli_stmt_close($stmt);
 }
-  ?>
+?>
 
 <!DOCTYPE html>
 <head>
@@ -40,6 +38,9 @@ if (strlen($_SESSION['pgasaid']==0)) {
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -69,15 +70,14 @@ if (strlen($_SESSION['pgasaid']==0)) {
                         </header>
                         <div class="panel-body">
                             <div class="form">
-                                 <p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
+                                 <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>
 
    
                                 <form class="cmxform form-horizontal " method="post" action="">
+                                   <?php echo csrf_field(); ?>
                                    <?php
- $cid=$_GET['editid'];
-$ret=mysqli_query($con,"select tblcity.ID as ctyid,tblcity.City as cityname,tblstate.StateName as stname,tblstate.ID as stid from tblcity join tblstate on tblstate.id=tblcity.StateID where tblcity.ID='$cid'");
+ $cid = $eid;
+$ret=mysqli_query($con,"select tblcity.ID as ctyid,tblcity.City as cityname,tblstate.StateName as stname,tblstate.ID as stid from tblcity join tblstate on tblstate.id=tblcity.StateID where tblcity.ID=" . $cid);
 $cnt=1;
 while ($row=mysqli_fetch_array($ret)) {
 
@@ -86,12 +86,12 @@ while ($row=mysqli_fetch_array($ret)) {
                                         <label for="adminname" class="control-label col-lg-3">State</label>
                                         <div class="col-lg-6">
                                              <select name="statename" class="form-control wd-450" required="true" >
-                    <option value="<?php echo $row['stid'];?>"><?php echo $row['stname'];?></option>
+                    <option value="<?php echo h($row['stid']); ?>"><?php echo h($row['stname']); ?></option>
               <?php $query=mysqli_query($con,"select * from tblstate");
               while($rw=mysqli_fetch_array($query))
               {
               ?>      
-                  <option value="<?php echo $rw['ID'];?>"><?php echo $rw['StateName'];?></option>
+                  <option value="<?php echo h($rw['ID']); ?>"><?php echo h($rw['StateName']); ?></option>
                   <?php } ?>
                   </select>
                                         </div>
@@ -100,7 +100,7 @@ while ($row=mysqli_fetch_array($ret)) {
                                     <div class="form-group ">
                                         <label for="adminname" class="control-label col-lg-3">City</label>
                                         <div class="col-lg-6">
-                                            <input class=" form-control" id="city" name="city" type="text" required="true" value="<?php  echo $row['cityname'];?>">
+                                            <input class=" form-control" id="city" name="city" type="text" required="true" value="<?php echo h($row['cityname']); ?>">
                                         </div>
                                     </div>
                                     
@@ -140,4 +140,3 @@ while ($row=mysqli_fetch_array($ret)) {
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

@@ -1,26 +1,15 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include ('includes/dbconnection.php');
 ?>
 
 <!DOCTYPE html>
-<html lang="zxx" class="no-js">
+<html lang="en" class="no-js">
 
 <head>
+	<?php include __DIR__ . '/includes/head.php'; ?>
 
 	<title>About Us</title>
-	<!--CSS
-	  ============================================= -->
-	<link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-	<link rel="stylesheet" href="css/linearicons.css">=
-	<link rel="stylesheet" href="css/font-awesome.min.css">
-	<link rel="stylesheet" href="css/nice-select.css">
-	<link rel="stylesheet" href="css/ion.rangeSlider.css" />
-	<link rel="stylesheet" href="css/ion.rangeSlider.skinFlat.css" />
-	<link rel="stylesheet" href="css/bootstrap.css">
-	<link rel="stylesheet" href="css/owl.carousel.css">
-	<link rel="stylesheet" href="css/main.css">
 	<style>
 		footer {
 			width: 100%;
@@ -75,10 +64,8 @@ include ('includes/dbconnection.php');
 								<?php echo $row['PageDescription']; ?>
 							</p>
 						</div>
-
-
-					</div>
-				<?php } ?>
+					<?php } ?>
+				</div>
 				<div class="col-lg-6 about-right no-padding">
 					<img class="img-fluid" src="img/about-us2.jpg" height="400" alt="">
 				</div>
@@ -96,21 +83,6 @@ include ('includes/dbconnection.php');
 	<!-- End footer Area -->
 
 
-	<script src="js/vendor/jquery-2.2.4.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js"
-		integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4"
-		crossorigin="anonymous"></script>
-	<script type="text/javascript"
-		src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBhOdIF3Y9382fqJYt5I_sswSrEw5eihAA"></script>
-	<script src="js/vendor/bootstrap.min.js"></script>
-	<script src="js/jquery.ajaxchimp.min.js"></script>
-	<script src="js/jquery.nice-select.min.js"></script>
-	<script src="js/jquery.sticky.js"></script>
-	<script src="js/ion.rangeSlider.js"></script>
-	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-	<script src="js/jquery.magnific-popup.min.js"></script>
-	<script src="js/owl.carousel.min.js"></script>
-	<script src="js/main.js"></script>
 </body>
 
 </html>

@@ -1,10 +1,8 @@
- <?php  
-session_start();
-error_reporting(0);
+<?php  
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  } else{
+
 
 
 
@@ -29,6 +27,9 @@ if (strlen($_SESSION['pgasaid']==0)) {
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -43,18 +44,15 @@ if (strlen($_SESSION['pgasaid']==0)) {
 	<section class="wrapper">
 		<div class="table-agile-info">
  <div class="panel panel-default">
-    <p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
+    <p style="font-size:16px; color:red" align="center"> <?php echo h($msg ?? ''); ?> </p>
     <div class="panel-heading">
      Paying Guest Details
     </div>
     <div>
 <?php
         
-        $vid=$_GET['viewid'];
-        $oid=$_SESSION['pgasoid'];
-$ret=mysqli_query($con,"select tblbookpg.BookingNumber, tblbookpg.CheckinDate,tblbookpg.UserMsg,tblbookpg.Remark, tblbookpg.Status,tblbookpg.RemDate,tblpg.PGTitle,tblpg.StateName,tblpg.CityName,tbluser.FullName,tbluser.Email,tbluser.MobileNumber from tbluser left join tblbookpg on tblbookpg.Userid=tbluser.ID left join tblpg on tblbookpg.Pgid=tblpg.ID where tblbookpg.ID='$vid'");
+        $vid = (int) ($_GET['viewid'] ?? 0);
+$ret=mysqli_query($con,"select tblbookpg.BookingNumber, tblbookpg.CheckinDate,tblbookpg.UserMsg,tblbookpg.Remark, tblbookpg.Status,tblbookpg.RemDate,tblpg.PGTitle,tblpg.StateName,tblpg.CityName,tbluser.FullName,tbluser.Email,tbluser.MobileNumber from tbluser left join tblbookpg on tblbookpg.Userid=tbluser.ID left join tblpg on tblbookpg.Pgid=tblpg.ID where tblbookpg.ID=$vid");
 
 while ($row=mysqli_fetch_array($ret)) {
 
@@ -64,51 +62,51 @@ while ($row=mysqli_fetch_array($ret)) {
         
   <tr>
     <th>Booking Number </th>
-    <td><?php  echo $row['BookingNumber'];?></td>
+    <td><?php echo h($row['BookingNumber']); ?></td>
   </tr>
    <tr>
     <th>Checkin Date</th>
-    <td><?php  echo $row['CheckinDate'];?></td>
+    <td><?php echo h($row['CheckinDate']); ?></td>
   </tr>
 <tr>
     <th>Message</th>
-    <td><?php  echo $row['UserMsg'];?></td>
+    <td><?php echo h($row['UserMsg']); ?></td>
   </tr>
 
 <tr>
     <th>Name Of PG</th>
-    <td><?php  echo $row['PGTitle'];?></td>
+    <td><?php echo h($row['PGTitle']); ?></td>
   </tr>
 
   <tr>
     <th>State</th>
-    <td><?php  echo $row['StateName'];?></td>
+    <td><?php echo h($row['StateName']); ?></td>
   </tr>
 
 
 
 <tr>
     <th>City Name</th>
-    <td><?php echo $row['CityName']; ?></td>
+    <td><?php echo h($row['CityName']); ?></td>
   </tr>
 
 
 <tr>
 <th>Full Name</th>
 <td>
-<?php echo $row['FullName']; ?>
+<?php echo h($row['FullName']); ?>
   </td>
   </tr>
   <tr>
 <th>Email</th>
 <td>
-<?php echo $row['Email']; ?>
+<?php echo h($row['Email']); ?>
   </td>
   </tr>
   <tr>
 <th>Mobile Number</th>
 <td>
-<?php echo $row['MobileNumber']; ?>
+<?php echo h($row['MobileNumber']); ?>
   </td>
   </tr>
 <tr>
@@ -120,7 +118,7 @@ if($row['Status']=="")
 }
 else
 {
-  echo $row['Status'];
+  echo h($row['Status']);
 }
 
      ;?></td>
@@ -133,14 +131,14 @@ else
 
 <tr>
     <th>Remark</th>
-    <td><?php echo $row['Remark']; ?></td>
+    <td><?php echo h($row['Remark']); ?></td>
   </tr>
 
 
 <tr>
 <th>Remark date</th>
 <td>
-<?php echo $row['RemDate']; ?>
+<?php echo h($row['RemDate']); ?>
   </td>
   </tr>
 
@@ -172,5 +170,4 @@ else
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>
 <?php }  ?>

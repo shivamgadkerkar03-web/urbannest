@@ -1,10 +1,8 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid'] == 0)) {
-  header('location:logout.php');
-} else {
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
+include('includes/dbconnection.php');
+
 
   ?>
 
@@ -37,7 +35,10 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
     <link href="css/font-awesome.css" rel="stylesheet">
     <!-- //font-awesome icons -->
     <script src="js/jquery2.0.3.min.js"></script>
-  </head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
+</head>
 
   <body>
     <section id="container">
@@ -94,23 +95,23 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
                         </td>
 
                         <td>
-                          <?php echo $row['FullName']; ?>
+                          <?php echo h($row['FullName']); ?>
                         </td>
                         <td>
-                          <?php echo $row['MobileNumber']; ?>
+                          <?php echo h($row['MobileNumber']); ?>
                         </td>
                         <td>
-                          <?php echo $row['Email']; ?>
+                          <?php echo h($row['Email']); ?>
                         </td>
-                        <!-- <td><?php echo $row['FatherName']; ?></td>-->
+                        
                         <td>
-                          <?php echo $row['dob']; ?>
-                        </td>
-                        <td>
-                          <?php echo $row['RegDate']; ?>
+                          <?php echo h($row['dob']); ?>
                         </td>
                         <td>
-                          <a href="user-bookings.php?uid=<?php echo $row['ID']; ?>&&uname=<?php echo $row['FullName']; ?>"
+                          <?php echo h($row['RegDate']); ?>
+                        </td>
+                        <td>
+                          <a href="user-bookings.php?uid=<?php echo (int) $row['ID']; ?>&amp;uname=<?php echo h(urlencode((string) $row['FullName'])); ?>"
                             class="btn btn-primary" target="blank">Booking details</a>
 
                       </tr>
@@ -143,4 +144,3 @@ if (strlen($_SESSION['pgasaid'] == 0)) {
   </body>
 
   </html>
-<?php } ?>

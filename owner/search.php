@@ -1,10 +1,8 @@
 <?php  
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasoid']==0)) {
-  header('location:logout.php');
-  } else{
+$ownerid = require_owner('login.php');
+
 
 ?>
 
@@ -22,6 +20,9 @@ if (strlen($_SESSION['pgasoid']==0)) {
 <link rel="stylesheet" href="css/font.css" type="text/css"/>
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -72,9 +73,9 @@ if (strlen($_SESSION['pgasoid']==0)) {
 if(isset($_POST['search']))
 { 
 
-$sdata=$_POST['searchdata'];
+$sdata = trim((string) ($_POST['searchdata'] ?? ''));
   ?>
-  <h4 align="center">Result against "<?php echo $sdata;?>" keyword </h4>
+  <h4 align="center">Result against "<?php echo h($sdata); ?>" keyword </h4>
         <thead>
           <tr>
             <th data-breakpoints="xs">S.NO</th>
@@ -87,8 +88,11 @@ $sdata=$_POST['searchdata'];
           </tr>
         </thead>
         <?php
-      $oid=$_SESSION['pgasoid'];
-$ret=mysqli_query($con,"select tblbookpg.ID,tblbookpg.BookingNumber,tblbookpg.CheckinDate,tblpg.PGTitle  from  tblbookpg join tblpg on tblpg.ID=tblbookpg.Pgid where   tblpg.OwnerID='$oid' && tblbookpg.BookingNumber like '%$sdata%'");
+$like = '%' . addcslashes($sdata, '%_\\') . '%';
+$sstmt = mysqli_prepare($con, "select tblbookpg.ID,tblbookpg.BookingNumber,tblbookpg.CheckinDate,tblpg.PGTitle from tblbookpg join tblpg on tblpg.ID=tblbookpg.Pgid where tblpg.OwnerID = ? and tblbookpg.BookingNumber like ?");
+mysqli_stmt_bind_param($sstmt, 'is', $ownerid, $like);
+mysqli_stmt_execute($sstmt);
+$ret = mysqli_stmt_get_result($sstmt);
 $num=mysqli_num_rows($ret);
 if($num>0){
 $cnt=1;
@@ -99,10 +103,10 @@ while ($row=mysqli_fetch_array($ret)) {
           <tr data-expanded="true">
             <td><?php echo $cnt;?></td>
               
-                  <td><?php  echo $row['PGTitle'];?></td>
-                  <td><?php  echo $row['BookingNumber'];?></td>
-                  <td><?php  echo $row['CheckinDate'];?></td>
-                  <td><a href="view-requestdetails.php?viewid=<?php echo $row['ID'];?>" class="btn btn-primary">View Details</a>
+                  <td><?php echo h($row['PGTitle']); ?></td>
+                  <td><?php echo h($row['BookingNumber']); ?></td>
+                  <td><?php echo h($row['CheckinDate']); ?></td>
+                  <td><a href="view-requestdetails.php?viewid=<?php echo h($row['ID']); ?>" class="btn btn-primary">View Details</a>
                 </tr>
                 <?php 
 $cnt=$cnt+1;
@@ -136,4 +140,3 @@ $cnt=$cnt+1;
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

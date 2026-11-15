@@ -1,27 +1,18 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
 include_once('includes/roommate-functions.php');
 
-if (empty($_SESSION['pgasuid'])) { header('location: signin.php'); exit; }
-$uid = (int)$_SESSION['pgasuid'];
+$uid = require_user('signin.php');
 $unread = getUnreadMessageCount($con, $uid);
 $conversations = getUserConversations($con, $uid);
 ?>
 <!DOCTYPE html>
 <html lang="en" class="no-js">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<?php include __DIR__ . '/includes/head.php'; ?>
     <title>Messages – UrbanNest</title>
     <meta name="description" content="Private messages with your roommate connections on UrbanNest.">
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-    <link rel="stylesheet" href="css/linearicons.css">
-    <link rel="stylesheet" href="css/font-awesome.min.css">
-    <link rel="stylesheet" href="css/bootstrap.css">
-    <link rel="stylesheet" href="css/main.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .msg-hero { background: linear-gradient(135deg, #1a1a2e, #0f3460); color:#fff; padding: 50px 0 30px; }
         .conv-list { background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,.08); overflow: hidden; }
@@ -61,16 +52,16 @@ $conversations = getUserConversations($con, $uid);
             <?php foreach($conversations as $conv):
                 $isUnread = $conv['unread_count'] > 0;
             ?>
-            <a href="chat.php?user=<?= $conv['other_id'] ?>" class="conv-item <?= $isUnread ? 'unread' : '' ?>">
+            <a href="chat.php?user=<?= (int)$conv['other_id'] ?>" class="conv-item <?= $isUnread ? 'unread' : '' ?>">
                 <img src="<?= getProfilePhoto($conv['other_photo'] ?? '') ?>" class="conv-avatar" onerror="this.src='img/default-profile.png'" alt="<?= esc($conv['other_name']) ?>">
                 <div class="flex-grow-1 overflow-hidden">
                     <div class="conv-name"><?= esc($conv['other_name']) ?></div>
-                    <div class="conv-last"><?= $conv['last_message'] ? esc(substr($conv['last_message'], 0, 60)) : 'Start a conversation' ?></div>
+                    <div class="conv-last"><?= $conv['last_message'] ? esc(mb_substr($conv['last_message'], 0, 60)) : 'Start a conversation' ?></div>
                 </div>
                 <div class="d-flex flex-column align-items-end gap-2">
                     <span class="conv-time"><?= $conv['last_msg_time'] ? timeAgo($conv['last_msg_time']) : '' ?></span>
                     <?php if ($isUnread): ?>
-                    <span class="badge rounded-pill bg-danger" style="font-size:.7rem;"><?= $conv['unread_count'] ?></span>
+                    <span class="badge rounded-pill bg-danger" style="font-size:.7rem;"><?= (int)$conv['unread_count'] ?></span>
                     <?php endif; ?>
                 </div>
             </a>
@@ -81,7 +72,5 @@ $conversations = getUserConversations($con, $uid);
 </section>
 
 <?php include_once('includes/footer.php'); ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/vendor/jquery-2.2.4.min.js"></script>
 </body>
 </html>

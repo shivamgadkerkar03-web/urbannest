@@ -1,10 +1,16 @@
+<?php
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
+    http_response_code(404);
+    exit;
+}
+?>
 <aside>
     <div id="sidebar" class="nav-collapse">
         <!-- sidebar menu start-->
         <div class="leftside-navigation">
             <ul class="sidebar-menu" id="nav-accordion">
                 <li>
-                    <a class="active" href="dashboard.php">
+                    <a href="dashboard.php">
                         <i class="fa fa-dashboard"></i>
                         <span>Dashboard</span>
                     </a>
@@ -36,7 +42,7 @@
                     </ul>
                 </li>
                          <li>
-                    <a class="active" href="search.php">
+                    <a href="search.php">
                         <i class="fa fa-search"></i>
                         <span>Search</span>
                     </a>
@@ -46,4 +52,24 @@
             </ul>            </div>
         <!-- sidebar menu end-->
     </div>
-</aside>
+</aside><script>
+    (function () {
+        var page = location.pathname.split('/').pop() || 'dashboard.php';
+        var links = document.querySelectorAll('#sidebar a[href]');
+        for (var i = 0; i < links.length; i++) {
+            var href = links[i].getAttribute('href').split('?')[0];
+            if (href !== page) {
+                continue;
+            }
+            links[i].classList.add('is-current');
+            var sub = links[i].closest('ul.sub');
+            if (sub) {
+                sub.style.display = 'block';
+                var parent = sub.parentElement.querySelector(':scope > a');
+                if (parent) {
+                    parent.classList.add('is-current');
+                }
+            }
+        }
+    })();
+</script>

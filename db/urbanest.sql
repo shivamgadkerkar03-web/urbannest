@@ -169,7 +169,7 @@ CREATE TABLE `tblowner` (
 --
 
 INSERT INTO `tblowner` (`ID`, `FullName`, `Email`, `MobileNumber`, `Password`, `RegDate`, `VerificationFile`, `status`) VALUES
-(12, 'Tejas Naik', 'tejasnaik@gmail.com', 9764413130, '92e6fce9b65a6ee0f648644d9d82c2b5', '2024-05-17 08:47:13', 'uploads/images.png', 1);
+(12, 'Tejas Naik', 'tejasnaik@gmail.com', 9764413130, 'f925916e2754e5e03f75dd58a5733251', '2024-05-17 08:47:13', 'uploads/images.png', 1);
 
 -- --------------------------------------------------------
 
@@ -232,7 +232,7 @@ CREATE TABLE `tblpg` (
 --
 
 INSERT INTO `tblpg` (`ID`, `OwnerID`, `StateName`, `CityName`, `PGTitle`, `Type`, `RPmonth`, `norooms`, `Address`, `Image`, `Electricity`, `Parking`, `Refregerator`, `Furnished`, `AC`, `Balcony`, `StudyTable`, `Laundry`, `Security`, `MealsBreakfast`, `MealLunch`, `MealDinner`, `RegDate`, `IsActive`, `LastUpdationDate`) VALUES
-(27, 12, 'Goa', 'North Goa', 'Laxmi Niwas', 'Boys', '3000', '2', 'Laxmi Nivas, Behind 20 Pt, Near Socorro Mazid And Socorro Panchayat, Socorro, Porvorim, Bardez, Goa.', '44afcf61c6914b9186800dad92ff820e.jpg', 'Yes', 'Yes', 'Yes', 'No', 'No', 'Yes', 'Yes', 'No', 'No', 'Yes', '', 'Yes', '2024-05-17 08:48:14', NULL, NULL);
+(27, 12, 'Goa', 'North Goa', 'Laxmi Niwas', 'Boys', '3000', '2', 'Laxmi Nivas, Behind 20 Pt, Near Socorro Mazid And Socorro Panchayat, Socorro, Porvorim, Bardez, Goa.', '44afcf61c6914b9186800dad92ff820e.jpg', 'Yes', 'Yes', 'Yes', 'No', 'No', 'Yes', 'Yes', 'No', 'No', 'Yes', '', 'Yes', '2024-05-17 08:48:14', 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -278,8 +278,8 @@ CREATE TABLE `tbluser` (
 --
 
 INSERT INTO `tbluser` (`ID`, `FullName`, `Email`, `MobileNumber`, `dob`, `Password`, `RegDate`, `LastUpdationDate`, `comm`) VALUES
-(28, 'Chandrakant Tamoskar', 'chandu@gmail.com', 8999989824, NULL, '82eefd09eb3936cd96a1e8320ebb8733', '2024-05-17 08:48:48', NULL, '{}'),
-(29, 'Shivam Gadkerkar', 'shivam@gmail.com', 9823939192, NULL, '20a96da5b83b3f736fcb58b987fae88d', '2024-05-17 09:26:13', '2024-05-17 09:27:47', '{\"28\":[{\"content\":\"_send_object_to_user_\",\"timestamp\":\"2024-05-17 09:26:36\",\"read\":true,\"sender\":\"buy\",\"pimage\":\"6647215fae516.jpg\",\"pname\":\"HP Victus Gaming Laptop\",\"pprice\":\"60000\"},{\"content\":\"Hi, I would like to buy your product\",\"timestamp\":\"2024-05-17 09:27:06\",\"read\":true,\"sender\":\"buy\"},{\"content\":\"Okay \",\"timestamp\":\"2024-05-17 09:27:26\",\"read\":true,\"sender\":\"sell\"},{\"content\":\"Do you have any meet up prefrence\",\"timestamp\":\"2024-05-17 09:27:46\",\"read\":true,\"sender\":\"sell\"}]}');
+(28, 'Chandrakant Tamoskar', 'chandu@gmail.com', 8999989824, NULL, 'f925916e2754e5e03f75dd58a5733251', '2024-05-17 08:48:48', NULL, '{}'),
+(29, 'Shivam Gadkerkar', 'shivam@gmail.com', 9823939192, NULL, 'f925916e2754e5e03f75dd58a5733251', '2024-05-17 09:26:13', '2024-05-17 09:27:47', '{\"28\":[{\"content\":\"_send_object_to_user_\",\"timestamp\":\"2024-05-17 09:26:36\",\"read\":true,\"sender\":\"buy\",\"pimage\":\"6647215fae516.jpg\",\"pname\":\"HP Victus Gaming Laptop\",\"pprice\":\"60000\"},{\"content\":\"Hi, I would like to buy your product\",\"timestamp\":\"2024-05-17 09:27:06\",\"read\":true,\"sender\":\"buy\"},{\"content\":\"Okay \",\"timestamp\":\"2024-05-17 09:27:26\",\"read\":true,\"sender\":\"sell\"},{\"content\":\"Do you have any meet up prefrence\",\"timestamp\":\"2024-05-17 09:27:46\",\"read\":true,\"sender\":\"sell\"}]}');
 
 --
 -- Indexes for dumped tables

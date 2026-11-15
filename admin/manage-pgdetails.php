@@ -1,11 +1,18 @@
-<?php  
-session_start();
-error_reporting(0);
+<?php
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  } else{
 
+if (isset($_POST['toggle_pg'])) {
+    csrf_check();
+    $pgid = (int) ($_POST['pgid'] ?? 0);
+    $active = (int) ($_POST['active'] ?? 0) === 1 ? 1 : 0;
+    $stmt = mysqli_prepare($con, "UPDATE tblpg SET IsActive = ? WHERE ID = ?");
+    mysqli_stmt_bind_param($stmt, 'ii', $active, $pgid);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    redirect_to('manage-pgdetails.php');
+}
 ?>
 
 
@@ -26,6 +33,9 @@ if (strlen($_SESSION['pgasaid']==0)) {
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -61,6 +71,7 @@ if (strlen($_SESSION['pgasaid']==0)) {
             <th>State Name</th>
             <th>City Name</th>
             <th>Registration Date</th>
+            <th>Status</th>
             <th data-breakpoints="xs">Action</th>
            
            
@@ -75,11 +86,24 @@ while ($row=mysqli_fetch_array($ret)) {
         <tbody>
           <tr data-expanded="true">
             <td><?php echo $cnt;?></td>
-              <td><?php  echo $row['PGTitle'];?></td>
-                  <td><?php  echo $row['StateName'];?></td>
-                  <td><?php  echo $row['CityName'];?></td>
-                  <td><?php  echo $row['RegDate'];?></td>
-                  <td><a href="view-pgdetails.php?editid=<?php echo $row['ID'];?>" class="btn btn-primary">View Details</a>
+              <td><?php echo h($row['PGTitle']); ?></td>
+                  <td><?php echo h($row['StateName']); ?></td>
+                  <td><?php echo h($row['CityName']); ?></td>
+                  <td><?php echo h($row['RegDate']); ?></td>
+                  <td><?php echo (int) $row['IsActive'] === 1 ? 'Active' : 'Pending / Inactive'; ?></td>
+                  <td><a href="view-pgdetails.php?editid=<?php echo h($row['ID']); ?>" class="btn btn-primary">View Details</a>
+                      <form method="post" action="" style="display:inline">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="pgid" value="<?php echo (int) $row['ID']; ?>">
+                        <?php if ((int) $row['IsActive'] === 1) { ?>
+                          <input type="hidden" name="active" value="0">
+                          <button type="submit" name="toggle_pg" class="btn btn-danger" onclick="return confirm('Hide this PG from the website?');">Deactivate</button>
+                        <?php } else { ?>
+                          <input type="hidden" name="active" value="1">
+                          <button type="submit" name="toggle_pg" class="btn btn-success">Approve</button>
+                        <?php } ?>
+                      </form>
+                  </td>
                 </tr>
                 <?php 
 $cnt=$cnt+1;
@@ -109,4 +133,3 @@ $cnt=$cnt+1;
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

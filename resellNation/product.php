@@ -1,6 +1,10 @@
 <?php
-session_start();
-include_once('connect.php');
+require_once __DIR__ . '/includes/market.php';
+
+$uid = current_user_id();
+$rawId = $_GET['id'] ?? null;
+$productId = is_string($rawId) ? filter_var($rawId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : false;
+$row = $productId ? un_fetch_product($con, $productId) : null;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -9,6 +13,7 @@ include_once('connect.php');
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= h(csrf_token()) ?>">
     <title>Product Details &bull; Urban Nation</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -52,7 +57,7 @@ include_once('connect.php');
         .prod-price-badge {
             font-size: 1.8rem;
             font-weight: 700;
-            color: #ff3333;
+            color: #e63946;
         }
 
         .seller-info-card {
@@ -62,6 +67,7 @@ include_once('connect.php');
             padding: 18px;
         }
     </style>
+    <link rel="stylesheet" href="../css/navbar.css">
 </head>
 
 <body>
@@ -79,26 +85,18 @@ include_once('connect.php');
         </nav>
 
         <?php
-        if (isset($_GET['id'])) {
-            $productId = mysqli_real_escape_string($con, $_GET['id']);
-            $query = "SELECT * FROM product WHERE productId='$productId'";
-            $result = mysqli_query($con, $query);
-
-            if (mysqli_num_rows($result) > 0) {
-                $row = mysqli_fetch_array($result);
-                $is_logged_in = !empty($_SESSION['pgasuid']);
-                $is_owner = ($is_logged_in && $row['userId'] == $_SESSION['pgasuid']);
-                $cat_text = $row['category'];
-                if ($cat_text == 'Hm' || $cat_text == 'F') $cat_text = 'Furniture';
-                elseif ($cat_text == 'E') $cat_text = 'Electronics';
-                elseif ($cat_text == 'L') $cat_text = 'Lifestyle';
+        if ($row !== null) {
+                $is_logged_in = $uid > 0;
+                $is_owner = ($is_logged_in && (int) $row['userId'] === $uid);
+                $cat_text = un_category_label($row['category']);
+                $img = basename((string) $row['images']);
         ?>
                 <div class="row g-4">
                     <!-- Left: Product Photo -->
                     <div class="col-lg-6 col-md-12">
                         <div class="prod-display-box">
-                            <?php if (!empty($row['images']) && file_exists('upload/' . $row['images'])) { ?>
-                                <img src="upload/<?= htmlspecialchars($row['images']) ?>" alt="<?= htmlspecialchars($row['productName']) ?>" class="prod-display-img">
+                            <?php if ($img !== '' && is_file(UN_UPLOAD_DIR . '/' . $img)) { ?>
+                                <img src="upload/<?= h(rawurlencode($img)) ?>" alt="<?= h($row['productName']) ?>" class="prod-display-img">
                             <?php } else { ?>
                                 <img src="./images/Thrift store.jpg" alt="Item Image" class="prod-display-img">
                             <?php } ?>
@@ -110,30 +108,30 @@ include_once('connect.php');
                         <div class="details-box">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="badge bg-light text-secondary border px-3 py-1 rounded-pill" style="font-size: 12px;">
-                                    <?= htmlspecialchars($cat_text) ?>
+                                    <?= h($cat_text) ?>
                                 </span>
                                 <?php if (!empty($row['brand'])): ?>
-                                    <span class="text-muted small fw-semibold text-uppercase"><?= htmlspecialchars($row['brand']) ?></span>
+                                    <span class="text-muted small fw-semibold text-uppercase"><?= h($row['brand']) ?></span>
                                 <?php endif; ?>
                             </div>
 
-                            <h2 class="fw-bold mb-2" style="color: #0f172a;"><?= htmlspecialchars($row['productName']) ?></h2>
+                            <h2 class="fw-bold mb-2" style="color: #0f172a;"><?= h($row['productName']) ?></h2>
                             <p class="text-muted small mb-3">
                                 <ion-icon name="location-outline" class="align-middle text-danger"></ion-icon>
-                                <?= htmlspecialchars($row['location']) ?>
+                                <?= h($row['location']) ?>
                             </p>
 
                             <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
                                 <span class="prod-price-badge">₹<?= number_format((int)$row['price']) ?></span>
                                 <?php if (!empty($row['size'])): ?>
-                                    <span class="badge bg-secondary-subtle text-secondary px-3 py-2 rounded-pill">Size: <?= htmlspecialchars($row['size']) ?></span>
+                                    <span class="badge bg-secondary-subtle text-secondary px-3 py-2 rounded-pill">Size: <?= h($row['size']) ?></span>
                                 <?php endif; ?>
                             </div>
 
                             <!-- Description -->
                             <h6 class="fw-bold text-uppercase small text-muted mb-2" style="letter-spacing: 0.5px;">Item Description</h6>
                             <p class="text-muted mb-4" style="line-height: 1.7; white-space: pre-line;">
-                                <?= htmlspecialchars($row['description']) ?>
+                                <?= h($row['description']) ?>
                             </p>
 
                             <!-- Seller Info -->
@@ -141,7 +139,7 @@ include_once('connect.php');
                                 <h6 class="fw-bold mb-2 small text-uppercase" style="color: #0f172a; letter-spacing: 0.5px;">Seller Information</h6>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <p class="fw-semibold mb-0" style="color: #1e293b;"><?= htmlspecialchars($row['sellersName']) ?></p>
+                                        <p class="fw-semibold mb-0" style="color: #1e293b;"><?= h($row['sellersName']) ?></p>
                                         <small class="text-muted"><ion-icon name="checkmark-circle-outline" class="text-success align-middle"></ion-icon> Verified Community Resident</small>
                                     </div>
                                     <span class="badge bg-white border text-secondary px-3 py-2 rounded-pill">Local Pickup</span>
@@ -156,14 +154,14 @@ include_once('connect.php');
                             <?php } elseif ($is_logged_in) { ?>
                                 <button type="button" class="btn btn-danger btn-lg w-100 rounded-pill py-3 fw-semibold shadow-sm"
                                     data-bs-toggle="modal" data-bs-target="#staticBackdrop"
-                                    myId="<?= (int)$_SESSION['pgasuid'] ?>" sellerId="<?= (int)$row['userId'] ?>" id="openChat"
-                                    style="background: #ff3333; border: none;">
+                                    data-product-id="<?= (int) $row['productId'] ?>" id="openChat"
+                                    style="background: #e63946; border: none;">
                                     <ion-icon name="chatbubbles-outline" class="align-middle me-2"></ion-icon> Chat with Seller
                                 </button>
                             <?php } else { ?>
                                 <button type="button" class="btn btn-danger btn-lg w-100 rounded-pill py-3 fw-semibold shadow-sm"
                                     data-bs-toggle="modal" data-bs-target="#loginPromptModal"
-                                    style="background: #ff3333; border: none;">
+                                    style="background: #e63946; border: none;">
                                     <ion-icon name="chatbubbles-outline" class="align-middle me-2"></ion-icon> Chat with Seller
                                 </button>
                             <?php } ?>
@@ -179,7 +177,7 @@ include_once('connect.php');
                             <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
                                 <div class="modal-header bg-dark text-white border-0 py-3">
                                     <h5 class="modal-title fw-bold" id="staticBackdropLabel">
-                                        Chat with <?= htmlspecialchars($row['sellersName']) ?>
+                                        Chat with <?= h($row['sellersName']) ?>
                                     </h5>
                                     <button type="button" class="btn-close btn-close-white shadow-none" data-bs-dismiss="modal" aria-label="Close"></button>
                                 </div>
@@ -187,16 +185,10 @@ include_once('connect.php');
                                     <div class="container bg-white rounded-3 p-3 shadow-sm mb-3" style="height: 400px; overflow-y: auto;" id="allMessage">
                                     </div>
                                     <div class="d-flex flex-column gap-2">
-                                        <button type="button" class="btn btn-outline-danger btn-sm align-self-start rounded-pill" id="prodRef"
-                                            pPrice="<?= (int)$row['price'] ?>" pName="<?= htmlspecialchars($row['productName']) ?>"
-                                            pImage="<?= htmlspecialchars($row['images']) ?>" myId="<?= (int)$_SESSION['pgasuid'] ?>"
-                                            sellerId="<?= (int)$row['userId'] ?>">
-                                            <ion-icon name="pricetag-outline" class="align-middle me-1"></ion-icon> Send Item Reference Card
-                                        </button>
                                         <div class="input-group">
                                             <input type="text" class="form-control shadow-none rounded-start-pill px-3" placeholder="Write your message..." id="newMessage">
-                                            <button myId="<?= (int)$_SESSION['pgasuid'] ?>" sellerId="<?= (int)$row['userId'] ?>" id="sendChat"
-                                                class="btn btn-danger rounded-end-pill px-4" style="background:#ff3333; border:none;" type="button">
+                                            <button id="sendChat"
+                                                class="btn btn-danger rounded-end-pill px-4" style="background:#e63946; border:none;" type="button">
                                                 Send
                                             </button>
                                         </div>
@@ -208,11 +200,10 @@ include_once('connect.php');
                 <?php endif; ?>
 
         <?php
-            } else {
-                echo '<div class="alert alert-warning text-center py-5">Product not found. <a href="search.php" class="fw-bold">Return to Marketplace</a></div>';
-            }
-        } else {
+        } elseif ($rawId === null || $rawId === '') {
             echo '<div class="alert alert-danger text-center py-5">No product selected. <a href="search.php" class="fw-bold">Browse Items</a></div>';
+        } else {
+            echo '<div class="alert alert-warning text-center py-5">Product not found. <a href="search.php" class="fw-bold">Return to Marketplace</a></div>';
         }
         ?>
     </div>
@@ -227,7 +218,7 @@ include_once('connect.php');
                 </div>
                 <div class="modal-body text-center py-4">
                     <div class="mb-3">
-                        <span class="d-inline-flex p-3 rounded-circle" style="background: #fff0f0; color: #ff3333; font-size: 32px;">
+                        <span class="d-inline-flex p-3 rounded-circle" style="background: #fff0f0; color: #e63946; font-size: 32px;">
                             <ion-icon name="chatbubbles-outline"></ion-icon>
                         </span>
                     </div>
@@ -238,7 +229,7 @@ include_once('connect.php');
                 </div>
                 <div class="modal-footer border-0 pt-0 d-flex justify-content-center gap-2 pb-4">
                     <button type="button" class="btn btn-light rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">Cancel</button>
-                    <a href="../signin.php" class="btn btn-danger rounded-pill px-4 fw-semibold" style="background: #ff3333; border: none;">Sign In</a>
+                    <a href="../signin.php" class="btn btn-danger rounded-pill px-4 fw-semibold" style="background: #e63946; border: none;">Sign In</a>
                 </div>
             </div>
         </div>
@@ -247,110 +238,29 @@ include_once('connect.php');
     <!-- Chat Scripts -->
     <script src="./script/message.js"></script>
     <script>
-        const openChatBtn = document.getElementById("openChat");
-        if (openChatBtn) {
-            openChatBtn.addEventListener('click', (event) => {
-                const btn = event.target.closest('button') || event.target;
-                const myId = btn.getAttribute("myId");
-                const sellerId = btn.getAttribute("sellerId");
-                const postData = { ID: myId, action: "get", sender: "buy", sellerId: sellerId };
+        (function () {
+            const openChatBtn = document.getElementById('openChat');
+            const parentElement = document.getElementById('allMessage');
+            if (!openChatBtn || !parentElement) return;
 
-                fetch('./php/chat.php', {
-                    method: 'POST',
-                    body: JSON.stringify(postData),
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        const parentElement = document.getElementById('allMessage');
-                        if (data.comm && data.comm.length > 0) {
-                            if (typeof loadWhatsAppChat2 === 'function') {
-                                loadWhatsAppChat2(data.comm, parentElement);
-                            }
-                        } else {
-                            parentElement.innerHTML = '<div class="text-center text-muted py-4"><p>No messages yet. Send a message to start the conversation!</p></div>';
+            const state = { productId: parseInt(openChatBtn.dataset.productId, 10) || 0, otherId: 0 };
+
+            openChatBtn.addEventListener('click', () => {
+                parentElement.replaceChildren();
+                UNChat.loadThread(state.productId, 0)
+                    .then(data => {
+                        if (!data.success) {
+                            UNChat.showError(parentElement, data.message);
+                            return;
                         }
-                    }
-                })
-                .catch(err => console.error(err));
-            });
-        }
-
-        const prodRefBtn = document.getElementById("prodRef");
-        if (prodRefBtn) {
-            prodRefBtn.addEventListener('click', (event) => {
-                const btn = event.target.closest('button');
-                const sellerId = btn.getAttribute("sellerId");
-                const userId = btn.getAttribute("myId");
-                const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-
-                const newMessage = {
-                    content: "_send_object_to_user_",
-                    timestamp: now,
-                    read: false,
-                    sender: "buy",
-                    pimage: btn.getAttribute("pImage"),
-                    pname: btn.getAttribute("pName"),
-                    pprice: btn.getAttribute("pPrice")
-                };
-
-                fetch('./php/sendMesssage.php', {
-                    method: 'POST',
-                    body: JSON.stringify({ ID: userId, sellerId: sellerId, newMessage: newMessage }),
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        const parentElement = document.getElementById('allMessage');
-                        if (typeof loadWhatsAppChat2 === 'function') {
-                            loadWhatsAppChat2(data.updatedCommData, parentElement);
-                        }
-                    }
-                })
-                .catch(err => console.error(err));
-            });
-        }
-
-        const sendChatBtn = document.getElementById("sendChat");
-        const newMsgInput = document.getElementById("newMessage");
-        if (sendChatBtn && newMsgInput) {
-            newMsgInput.addEventListener("keypress", (e) => {
-                if (e.key === "Enter") sendChatBtn.click();
+                        state.otherId = data.other.id;
+                        UNChat.render(data, parentElement);
+                    })
+                    .catch(() => UNChat.showError(parentElement));
             });
 
-            sendChatBtn.addEventListener('click', (event) => {
-                const val = newMsgInput.value.trim();
-                if (!val) return;
-                const sellerId = sendChatBtn.getAttribute("sellerId");
-                const userId = sendChatBtn.getAttribute("myId");
-                const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-
-                const postData = {
-                    ID: userId,
-                    sellerId: sellerId,
-                    newMessage: { content: val, timestamp: now, read: false, sender: "buy" }
-                };
-
-                fetch('./php/sendMesssage.php', {
-                    method: 'POST',
-                    body: JSON.stringify(postData),
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        const parentElement = document.getElementById('allMessage');
-                        if (typeof loadWhatsAppChat2 === 'function') {
-                            loadWhatsAppChat2(data.updatedCommData, parentElement);
-                        }
-                        newMsgInput.value = "";
-                    }
-                })
-                .catch(err => console.error(err));
-            });
-        }
+            UNChat.bindComposer(document.getElementById('newMessage'), document.getElementById('sendChat'), parentElement, state);
+        })();
     </script>
 
     <?php include_once ('includes/footer2.php'); ?>

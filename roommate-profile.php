@@ -1,64 +1,86 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
 include_once('includes/roommate-functions.php');
 
-if (empty($_SESSION['pgasuid'])) { header('location: signin.php'); exit; }
-$uid = (int)$_SESSION['pgasuid'];
+$uid = require_user('signin.php');
 $msg = '';
 $msgType = 'success';
 
+function pick_option($value, array $allowed, $default) {
+    return in_array($value, $allowed, true) ? $value : $default;
+}
+
+function valid_date_or_null($value) {
+    $value = trim((string)$value);
+    if ($value === '') return null;
+    $d = DateTime::createFromFormat('!Y-m-d', $value);
+    return ($d && $d->format('Y-m-d') === $value) ? $value : null;
+}
+
 // Handle form submission
 if (isset($_POST['save_profile'])) {
+    csrf_check();
     $age          = (int)($_POST['age'] ?? 0);
-    $gender       = trim($_POST['gender'] ?? '');
-    $occupation   = trim($_POST['occupation'] ?? '');
-    $college      = trim($_POST['college_company'] ?? '');
-    $city         = trim($_POST['city'] ?? '');
-    $locality     = trim($_POST['preferred_locality'] ?? '');
-    $budget       = (int)($_POST['monthly_budget'] ?? 0);
-    $move_in      = trim($_POST['move_in_date'] ?? '');
-    $food         = trim($_POST['food_preference'] ?? 'Both');
-    $smoking      = trim($_POST['smoking'] ?? 'No');
-    $drinking     = trim($_POST['drinking'] ?? 'No');
-    $sleeping     = trim($_POST['sleeping_schedule'] ?? 'Flexible');
-    $cleanliness  = trim($_POST['cleanliness'] ?? 'Moderate');
-    $social       = trim($_POST['social_lifestyle'] ?? 'Moderate');
+    $age          = ($age >= 16 && $age <= 80) ? $age : null;
+    $gender       = pick_option(trim($_POST['gender'] ?? ''), ['Male','Female','Other'], null);
+    $occupation   = mb_substr(trim($_POST['occupation'] ?? ''), 0, 100);
+    $college      = mb_substr(trim($_POST['college_company'] ?? ''), 0, 200);
+    $city         = mb_substr(trim($_POST['city'] ?? ''), 0, 100);
+    $locality     = mb_substr(trim($_POST['preferred_locality'] ?? ''), 0, 200);
+    $budget       = max(0, (int)($_POST['monthly_budget'] ?? 0));
+    $budget       = $budget > 0 ? $budget : null;
+    $move_in      = valid_date_or_null($_POST['move_in_date'] ?? '');
+    $food         = pick_option(trim($_POST['food_preference'] ?? ''), ['Vegetarian','Non-Vegetarian','Both'], 'Both');
+    $smoking      = pick_option(trim($_POST['smoking'] ?? ''), ['Yes','No','Occasionally'], 'No');
+    $drinking     = pick_option(trim($_POST['drinking'] ?? ''), ['Yes','No','Occasionally'], 'No');
+    $sleeping     = pick_option(trim($_POST['sleeping_schedule'] ?? ''), ['Early Bird','Night Owl','Flexible'], 'Flexible');
+    $cleanliness  = pick_option(trim($_POST['cleanliness'] ?? ''), ['Very Clean','Moderate','Relaxed'], 'Moderate');
+    $social       = pick_option(trim($_POST['social_lifestyle'] ?? ''), ['Very Social','Moderate','Introvert'], 'Moderate');
     $about        = trim($_POST['about_me'] ?? '');
 
     // Handle photo upload
     $photo = '';
+    $uploadFailed = false;
     if (!empty($_FILES['profile_photo']['name'])) {
         $fn = uploadRoommateImage($_FILES['profile_photo'], 'profile');
-        if ($fn) $photo = $fn;
+        if ($fn) {
+            $photo = $fn;
+        } else {
+            $uploadFailed = true;
+        }
     }
 
     // Check if profile exists
-    $check = mysqli_query($con, "SELECT id, profile_photo FROM roommate_profiles WHERE user_id='$uid' LIMIT 1");
-    $existing = mysqli_fetch_assoc($check);
+    $check = mysqli_prepare($con, "SELECT id, profile_photo FROM roommate_profiles WHERE user_id = ? LIMIT 1");
+    mysqli_stmt_bind_param($check, 'i', $uid);
+    mysqli_stmt_execute($check);
+    $existing = mysqli_fetch_assoc(mysqli_stmt_get_result($check));
 
     if ($existing) {
         $current_photo = $photo ?: $existing['profile_photo'];
         $stmt = mysqli_prepare($con, "UPDATE roommate_profiles SET age=?,gender=?,occupation=?,college_company=?,city=?,preferred_locality=?,monthly_budget=?,move_in_date=?,food_preference=?,smoking=?,drinking=?,sleeping_schedule=?,cleanliness=?,social_lifestyle=?,about_me=?,profile_photo=?,updated_at=NOW() WHERE user_id=?");
-        mysqli_stmt_bind_param($stmt, 'isssssisdsssssssi',
+        mysqli_stmt_bind_param($stmt, 'isssssisssssssssi',
             $age,$gender,$occupation,$college,$city,$locality,$budget,$move_in,
             $food,$smoking,$drinking,$sleeping,$cleanliness,$social,$about,$current_photo,$uid
         );
     } else {
         $current_photo = $photo ?: 'default-profile.png';
         $stmt = mysqli_prepare($con, "INSERT INTO roommate_profiles (user_id,age,gender,occupation,college_company,city,preferred_locality,monthly_budget,move_in_date,food_preference,smoking,drinking,sleeping_schedule,cleanliness,social_lifestyle,about_me,profile_photo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-        mysqli_stmt_bind_param($stmt, 'iisssssidssssssss',
+        mysqli_stmt_bind_param($stmt, 'iisssssisssssssss',
             $uid,$age,$gender,$occupation,$college,$city,$locality,$budget,$move_in,
             $food,$smoking,$drinking,$sleeping,$cleanliness,$social,$about,$current_photo
         );
     }
 
     if (mysqli_stmt_execute($stmt)) {
-        $msg = 'Profile updated successfully!';
-        $msgType = 'success';
+        $msg = $uploadFailed
+            ? 'Profile saved, but the photo could not be uploaded (JPG, PNG, WebP or GIF up to 5 MB).'
+            : 'Profile updated successfully!';
+        $msgType = $uploadFailed ? 'warning' : 'success';
     } else {
-        $msg = 'Something went wrong: ' . mysqli_error($con);
+        error_log('Roommate profile save failed: ' . mysqli_error($con));
+        $msg = 'Something went wrong. Please try again.';
         $msgType = 'danger';
     }
 }
@@ -69,15 +91,8 @@ $profile = getRoommateProfile($con, $uid);
 <!DOCTYPE html>
 <html lang="en" class="no-js">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<?php include __DIR__ . '/includes/head.php'; ?>
     <title>My Roommate Profile – UrbanNest</title>
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-    <link rel="stylesheet" href="css/linearicons.css">
-    <link rel="stylesheet" href="css/font-awesome.min.css">
-    <link rel="stylesheet" href="css/bootstrap.css">
-    <link rel="stylesheet" href="css/main.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .profile-hero { background: linear-gradient(135deg, #ff3333, #c0392b); padding: 55px 0 35px; color:#fff; text-align:center; }
         .form-section { background:#fff; border-radius:16px; padding:32px; box-shadow:0 4px 20px rgba(0,0,0,.08); margin-bottom:24px; }
@@ -103,13 +118,14 @@ $profile = getRoommateProfile($con, $uid);
 <section class="section-gap">
     <div class="container" style="max-width:750px;">
         <?php if ($msg): ?>
-        <div class="alert alert-<?= $msgType ?> alert-dismissible fade show rounded-3 mb-4">
+        <div class="alert alert-<?= esc($msgType) ?> alert-dismissible fade show rounded-3 mb-4">
             <?= esc($msg) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data" novalidate>
+            <?= csrf_field() ?>
 
             <!-- Photo -->
             <div class="form-section text-center">
@@ -130,7 +146,7 @@ $profile = getRoommateProfile($con, $uid);
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Age</label>
-                        <input type="number" name="age" class="form-control" min="16" max="80" value="<?= $profile['age'] ?? '' ?>">
+                        <input type="number" name="age" class="form-control" min="16" max="80" value="<?= esc($profile['age'] ?? '') ?>">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Gender</label>
@@ -159,11 +175,11 @@ $profile = getRoommateProfile($con, $uid);
                     </div>
                     <div class="col-md-3">
                         <label class="form-label fw-bold">Monthly Budget (₹)</label>
-                        <input type="number" name="monthly_budget" class="form-control" min="0" value="<?= $profile['monthly_budget'] ?? '' ?>">
+                        <input type="number" name="monthly_budget" class="form-control" min="0" value="<?= esc($profile['monthly_budget'] ?? '') ?>">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label fw-bold">Move-in Date</label>
-                        <input type="date" name="move_in_date" class="form-control" value="<?= $profile['move_in_date'] ?? '' ?>">
+                        <input type="date" name="move_in_date" class="form-control" value="<?= esc($profile['move_in_date'] ?? '') ?>">
                     </div>
                 </div>
             </div>
@@ -236,8 +252,6 @@ $profile = getRoommateProfile($con, $uid);
 </section>
 
 <?php include_once('includes/footer.php'); ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/vendor/jquery-2.2.4.min.js"></script>
 <script>
 // Photo preview
 document.getElementById('photoInput').addEventListener('change', function(e) {

@@ -1,30 +1,24 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
- header('location:logout.php');
-  } else{
-    if(isset($_POST['submit']))
-  {
 
-$cmsaid=$_SESSION['pgasaid'];
- $pagetitle=$_POST['pagetitle'];
-$pagedes=$_POST['pagedes'];
+$msg = '';
+if (isset($_POST['submit'])) {
+    csrf_check();
+    $pagetitle = (string) ($_POST['pagetitle'] ?? '');
+    $pagedes = (string) ($_POST['pagedes'] ?? '');
 
- $query=mysqli_query($con,"update tblpages set PageTitle='$pagetitle',PageDescription='$pagedes' where  PageType='contactus'");
-
-    if ($query) {
-    $msg="Contact Us has been updated.";
-  }
-  else
-    {
-      $msg="Something Went Wrong. Please try again";
+    $stmt = mysqli_prepare($con, "UPDATE tblpages SET PageTitle = ?, PageDescription = ? WHERE PageType = 'contactus'");
+    mysqli_stmt_bind_param($stmt, 'ss', $pagetitle, $pagedes);
+    if (mysqli_stmt_execute($stmt)) {
+        $msg = "Contact Us has been updated.";
+    } else {
+        $msg = "Something Went Wrong. Please try again";
     }
-
-  
+    mysqli_stmt_close($stmt);
 }
-  ?>
+?>
 
 <!DOCTYPE html>
 <head>
@@ -46,6 +40,9 @@ $pagedes=$_POST['pagedes'];
 <script src="js/jquery2.0.3.min.js"></script>
 <script src="http://js.nicedit.com/nicEdit-latest.js" type="text/javascript"></script>
 <script type="text/javascript">bkLib.onDomLoaded(nicEditors.allTextAreas);</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -75,12 +72,11 @@ $pagedes=$_POST['pagedes'];
                         </header>
                         <div class="panel-body">
                             <div class="form">
-                                 <p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
+                                 <p style="font-size:16px; color:red" align="center"> <?php echo h($msg); ?> </p>
 
    
                                 <form class="cmxform form-horizontal " method="post" action="">
+                                    <?php echo csrf_field(); ?>
                                     <?php
  
 $ret=mysqli_query($con,"select * from  tblpages where PageType='contactus'");
@@ -91,14 +87,14 @@ while ($row=mysqli_fetch_array($ret)) {
                                     <div class="form-group ">
                                         <label for="adminname" class="control-label col-lg-3">Page Title</label>
                                         <div class="col-lg-6">
-                                            <input class=" form-control" id="pagetitle" name="pagetitle" type="text" required="true" value="<?php  echo $row['PageTitle'];?>">
+                                            <input class=" form-control" id="pagetitle" name="pagetitle" type="text" required="true" value="<?php echo h($row['PageTitle']); ?>">
                                         </div>
                                     </div>
                                     <div class="form-group">
                                         <label for="adminname" class="control-label col-lg-3">Page Description
                                         </label>
                                         <div class="col-lg-6">
-                                            <textarea class=" form-control" id="pagedes" name="pagedes" type="text" required="true" value=""><?php  echo $row['PageDescription'];?></textarea>
+                                            <textarea class=" form-control" id="pagedes" name="pagedes" type="text" required="true" value=""><?php echo h($row['PageDescription']); ?></textarea>
                                         </div>
                                     </div>
                                     <?php } ?>
@@ -137,4 +133,3 @@ while ($row=mysqli_fetch_array($ret)) {
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>

@@ -1,415 +1,298 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include ('includes/dbconnection.php');
+
+$pid = (int) ($_GET['pid'] ?? 0);
+$uid = current_user_id();
+
+$stmt = mysqli_prepare($con, "SELECT * FROM tblpg WHERE ID = ? AND IsActive = 1");
+mysqli_stmt_bind_param($stmt, 'i', $pid);
+mysqli_stmt_execute($stmt);
+$row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
+
+function active_booking_exists($con, int $uid, int $pid): bool
+{
+  $stmt = mysqli_prepare($con, "SELECT ID FROM tblbookpg WHERE Userid = ? AND Pgid = ? AND (Status IS NULL OR Status = '' OR Status = 'Confirmed') LIMIT 1");
+  mysqli_stmt_bind_param($stmt, 'ii', $uid, $pid);
+  mysqli_stmt_execute($stmt);
+  $found = (bool) mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+  mysqli_stmt_close($stmt);
+  return $found;
+}
+
+$bookingError = '';
 if (isset($_POST['submit'])) {
-  $pid = $_GET['pid'];
-  $userid = $_SESSION['pgasuid'];
-  $chkin = $_POST['chkin'];
-  $msg = $_POST['message'];
-  $booknumber = mt_rand(100000000, 999999999);
+  if ($uid <= 0) {
+    redirect_to('signin.php');
+  }
+  csrf_check();
 
-  $query = mysqli_query($con, "insert into tblbookpg(Userid,Pgid,CheckinDate,UserMsg,BookingNumber) values('$userid','$pid','$chkin','$msg','$booknumber') ");
-  if ($query) {
+  $chkin = trim((string) ($_POST['chkin'] ?? ''));
+  $userMsg = trim((string) ($_POST['message'] ?? ''));
+  $chkinDate = DateTime::createFromFormat('!Y-m-d', $chkin);
+  $today = new DateTime('today');
+  $maxDate = (new DateTime('today'))->modify('+3 months');
 
-    echo "<script>alert('Booking detail has been sent to owner.');</script>";
-    // echo "<script>window.location.href='my-bookings.php'</script>";
+  if (!$row) {
+    $bookingError = 'This PG is not available for booking.';
+  } elseif (!$chkinDate || $chkinDate->format('Y-m-d') !== $chkin) {
+    $bookingError = 'Please select a valid check-in date.';
+  } elseif ($chkinDate < $today) {
+    $bookingError = 'Check-in date cannot be in the past.';
+  } elseif ($chkinDate > $maxDate) {
+    $bookingError = 'Check-in date must be within the next 3 months.';
+  } elseif ($userMsg === '' || mb_strlen($userMsg) > 500) {
+    $bookingError = 'Please enter a message (up to 500 characters).';
+  } elseif (active_booking_exists($con, $uid, $pid)) {
+    $bookingError = 'You already have an active booking for this PG.';
   } else {
-    echo "<script>alert('Something Went Wrong. Please try again.');</script>";
+    $booknumber = random_int(100000000, 999999999);
+    $stmt = mysqli_prepare($con, "INSERT INTO tblbookpg (Userid, Pgid, CheckinDate, UserMsg, BookingNumber) VALUES (?, ?, ?, ?, ?)");
+    mysqli_stmt_bind_param($stmt, 'iissi', $uid, $pid, $chkin, $userMsg, $booknumber);
+    $ok = mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    if ($ok) {
+      redirect_to('pg-details.php?pid=' . $pid . '&booked=1');
+    }
+    error_log('Booking insert failed: ' . mysqli_error($con));
+    $bookingError = 'Something Went Wrong. Please try again.';
   }
 }
+
+$alreadyBooked = ($row && $uid > 0) ? active_booking_exists($con, $uid, $pid) : false;
 ?>
 <!DOCTYPE html>
-<html lang="zxx" class="no-js">
+<html lang="en">
 
 <head>
-
-  <title>UrbanNest</title>
-
-  <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-  <!--
-      CSS
-      ============================================= -->
-  <link rel="stylesheet" href="css/linearicons.css">=
-  <link rel="stylesheet" href="css/font-awesome.min.css">
-  <link rel="stylesheet" href="css/nice-select.css">
-  <link rel="stylesheet" href="css/ion.rangeSlider.css" />
-  <link rel="stylesheet" href="css/ion.rangeSlider.skinFlat.css" />
-  <link rel="stylesheet" href="css/bootstrap.css">
-  <link rel="stylesheet" href="css/owl.carousel.css">
-  <link rel="stylesheet" href="css/main.css">
+  <?php include __DIR__ . '/includes/head.php'; ?>
+  <title><?= $row ? h($row['PGTitle']) . ' | ' : '' ?>UrbanNest</title>
   <style>
-    footer {
+    .pg-hero-img {
       width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: var(--un-radius);
+      background: var(--un-bg);
+    }
+
+    .pg-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      color: var(--un-muted);
+      font-size: 14px;
+    }
+
+    .pg-meta .lnr {
+      margin-right: 4px;
+    }
+
+    .info-grid {
       display: grid;
-      place-item: center;
-      padding: 20px !important;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .info-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--un-line);
+      border-radius: 10px;
+      font-size: 14px;
+      color: var(--un-ink);
+    }
+
+    .info-item .dot {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      background: #f1f2f5;
+      color: #9aa0ad;
+    }
+
+    .info-item.is-yes .dot {
+      background: #e8f6ee;
+      color: #1e7d48;
+    }
+
+    .info-item.is-no {
+      color: var(--un-muted);
+    }
+
+    .detail-table th {
+      width: 40%;
+      font-weight: 500;
+      color: var(--un-muted);
+    }
+
+    .booking-card {
+      position: sticky;
+      top: 90px;
+    }
+
+    .booking-card .price {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--un-ink);
+    }
+
+    .booking-card .price small {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--un-muted);
     }
   </style>
 </head>
 
-
 <body>
 
-  <!-- Start Header Area -->
   <?php include_once ('includes/header.php'); ?>
-  <!-- End Header Area -->
 
-  <!-- start banner Area -->
-
-  <section class="banner-area relative" id="home">
+  <section class="banner-area relative">
     <div class="overlay overlay-bg"></div>
     <div class="container">
-      <div class="row d-flex text-center align-items-center justify-content-center">
+      <div class="row text-center justify-content-center">
         <div class="about-content col-lg-12">
-          <p class="text-white link-nav"><a href="index.php">Home </a>
-            <span class="lnr lnr-arrow-right"></span>
-            <a href="particularpg-details.php">
-              PG Details
-            </a>
-
+          <p class="text-white link-nav"><a href="index.php">Home</a>
+            <span class="lnr lnr-arrow-right"></span> <a href="pg.php">PG Accommodation</a>
+            <?php if ($row) { ?><span class="lnr lnr-arrow-right"></span> <span><?= h($row['PGTitle']) ?></span><?php } ?>
           </p>
-          <h1 class="text-white">
-            PG Details
-          </h1>
+          <h1 class="text-white"><?= $row ? h($row['PGTitle']) : 'PG Details' ?></h1>
         </div>
       </div>
     </div>
   </section>
-  <!-- End banner Area -->
 
-  <!--  Blog Area -->
-
-  <section class="blog_area single-post-area p_120">
+  <section class="section-gap">
     <div class="container">
-      <div class="row mt-80">
-        <?php
-        $cid = $_GET['pid'];
-        $ret = mysqli_query($con, "select * from tblpg where ID='$cid'");
-        $cnt = 1;
-        while ($row = mysqli_fetch_array($ret)) {
+      <?php if (!$row) { ?>
+        <div class="empty-state un-card">
+          <span class="lnr lnr-apartment"></span>
+          <h3 class="h5">PG not found</h3>
+          <p>The PG you are looking for does not exist or is no longer listed.</p>
+          <a href="pg.php" class="btn btn-primary">Browse PGs</a>
+        </div>
+      <?php } else {
+        $yes = function ($value): bool {
+          return strcasecmp(trim((string) $value), 'Yes') === 0;
+        };
+        $facilities = [
+          'Electricity'        => $row['Electricity'],
+          'Parking'            => $row['Parking'],
+          'Refrigerator'       => $row['Refregerator'],
+          'Fully furnished'    => $row['Furnished'],
+          'AC'                 => $row['AC'],
+          'Balcony'            => $row['Balcony'],
+          'Study table & lamp' => $row['StudyTable'],
+          'Laundry'            => $row['Laundry'],
+          'Security'           => $row['Security'],
+        ];
+        $meals = [
+          'Breakfast' => $row['MealsBreakfast'],
+          'Lunch'     => $row['MealLunch'],
+          'Dinner'    => $row['MealDinner'],
+        ];
+        $rent = is_numeric($row['RPmonth']) ? number_format((float) $row['RPmonth']) : h($row['RPmonth']);
+      ?>
+        <?php if (isset($_GET['booked'])) { ?>
+          <div class="alert alert-success">Your booking request has been sent to the owner. You can track it in <a href="my-bookings.php">My Bookings</a>.</div>
+        <?php } ?>
 
-          ?>
-          <div class="col-lg-12 posts-list">
-            <div class="single-post row">
-              <div class="col-lg-12">
-                <div class="feature-img" align="center">
-                  <img src="owner/roomimages/<?php echo $row['Image']; ?>" height='350' width="1000"
-                    style="border:#000 solid 2px;">
-                </div>
-                <h2 align="center" style="margin-top:2%">
-                  <?php echo $row['PGTitle']; ?>'s Details
-                </h2>
-              </div>
+        <div class="row g-4 g-lg-5">
+          <div class="col-lg-8">
+            <img class="pg-hero-img mb-4" src="owner/roomimages/<?= rawurlencode(basename((string) $row['Image'])) ?>"
+              alt="<?= h($row['PGTitle']) ?>" onerror="this.src='img/default-property.jpg'">
 
-
-              <div class="col-lg-6 col-md-9 blog_details">
-
-                <table border="1" class="table table-bordered mg-b-0">
-
-                  <tr>
-                    <th>State</th>
-                    <td>
-                      <?php echo $row['StateName']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>City</th>
-                    <td>
-                      <?php echo $row['CityName']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Rent Per Month</th>
-                    <td>
-                      <?php echo $row['RPmonth']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Number of Rooms</th>
-                    <td>
-                      <?php echo $row['norooms']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Address</th>
-                    <td>
-                      <?php echo $row['Address']; ?>
-                    </td>
-                  </tr>
-                </table>
-
-                <table border="1" class="table table-bordered mg-b-0">
-                  <tr align="center">
-                    <td style="color: red; font-size: 20px" colspan="2">Meals which are offered by PG</td>
-                  </tr>
-                  <tr>
-                    <th>Breakfast</th>
-                    <td>
-                      <?php echo $row['MealsBreakfast']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Lunch</th>
-                    <td>
-                      <?php echo $row['MealLunch']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Dinner</th>
-                    <td>
-                      <?php echo $row['MealDinner']; ?>
-                    </td>
-                  </tr>
-
-                </table>
-
-
-
-              </div>
-              <div class="col-lg-6 col-md-9 blog_details">
-
-                <table border="1" class="table table-bordered mg-b-0">
-                  <tr align="center">
-                    <td style="color: red; font-size: 20px" colspan="2">Facilities</td>
-                  </tr>
-                  <tr>
-                    <th>Electricity</th>
-                    <td>
-                      <?php echo $row['Electricity']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Parking</th>
-                    <td>
-                      <?php echo $row['Parking']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Refregerator</th>
-                    <td>
-                      <?php echo $row['Refregerator']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Full Furnished</th>
-                    <td>
-                      <?php echo $row['Furnished']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>AC</th>
-                    <td>
-                      <?php echo $row['AC']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Balcony</th>
-                    <td>
-                      <?php echo $row['Balcony']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Table/Study Lamp</th>
-                    <td>
-                      <?php echo $row['StudyTable']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Laundry</th>
-                    <td>
-                      <?php echo $row['Laundry']; ?>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Security</th>
-                    <td>
-                      <?php echo $row['Security']; ?>
-                    </td>
-                  </tr>
-                </table>
-
-
-              </div>
-            </div>
-            <?php if ($_SESSION['pgasuid'] == "") { ?>
-              <a href="signin.php" class="btn primary-btn">Book Now</a>
-            <?php } else { ?>
-
-              <?php
-              if (isset($_GET['pid']) && isset($_SESSION['pgasuid'])) {
-                // Escape the input to prevent SQL injection
-                $pid = mysqli_real_escape_string($con, $_GET['pid']);
-                $userid = mysqli_real_escape_string($con, $_SESSION['pgasuid']);
-
-                // Select query
-                $query = "SELECT * FROM tblbookpg WHERE Userid='$userid'";
-                // $query = "SELECT * FROM tblbookpg WHERE Pgid='$pid' AND Userid='$userid'";
-          
-                // Execute the query
-                $result = mysqli_query($con, $query);
-                if ($result) {
-                  // Check the number of rows returned
-                  $numRows = mysqli_num_rows($result);
-
-                  if ($numRows > 0) {
-                    while ($row = mysqli_fetch_assoc($result)) {
-                      // Print the status value
-                      // echo $_GET['pid'] . "<br>";
-                      // $_GET['param2']
-                      if($_GET['pid'] == $row['Pgid']) {
-                        echo '<div class="col-md-12 text-center">
-                                  <button type="button" class="btn btn-success">Already Booked!</button>
-                                </div>';
-                      } else {
-                        echo '<div class="col-md-12 text-center">
-                                  <button type="button" class="btn btn-warning">Some other PG is already booked</button>
-                                </div>';
-                      }
-                    }
-                  } else {
-                    echo '<div class="col-md-12 text-center">
-                            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#myModal">Book Now<span
-                                class="lnr lnr-arrow-right"></span></button>
-                          </div>';
-                  }
-                } else {
-                  echo "Query failed: " . mysqli_error($con);
-                }
-              }
-              ?>
-
-
-
-              <form method="post">
-
-
-
+            <h2 class="h3 mb-2"><?= h($row['PGTitle']) ?></h2>
+            <div class="pg-meta mb-4">
+              <span><span class="lnr lnr-map-marker"></span><?= h($row['CityName']) ?>, <?= h($row['StateName']) ?></span>
+              <?php if (!empty($row['Type'])) { ?><span><span class="lnr lnr-users"></span>For <?= h($row['Type']) ?></span><?php } ?>
+              <?php if (!empty($row['norooms'])) { ?><span><span class="lnr lnr-home"></span><?= h($row['norooms']) ?> room<?= (int) $row['norooms'] === 1 ? '' : 's' ?></span><?php } ?>
             </div>
 
-            <!-- <div class="col-md-12 text-center">
-              <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#myModal">Book Now<span
-                  class="lnr lnr-arrow-right"></span></button>
-            </div> -->
-            </form>
-
-          <?php } ?>
-
-        </div>
-      </div>
-    </section>
-    <!--  Blog Area -->
-    <!-- Button to Open the Modal -->
-
-    <!-- The Modal -->
-
-    <div class="modal" id="myModal">
-      <div class="modal-dialog">
-        <div class="modal-content">
-
-          <!-- Modal Header -->
-          <div class="modal-header">
-            <h4 class="modal-title">Modal Heading</h4>
-            <button type="button" class="close" data-dismiss="modal">&times;</button>
-          </div>
-
-          <!-- Modal body -->
-          <div class="modal-body">
-            <form class="row contact_form" action="" method="post" id="">
-              <p style="font-size:16px; color:red" align="center">
-                <?php if ($msg) {
-                  echo $msg;
-                } ?>
-              </p>
-              <div class="col-md-12">
-
-
-                <label for="chkin">Select Date:</label>
-                <!-- Input field for date selection -->
-                <!-- <input type="date" id="chkin" name="chkin" onchange="validateDate()"> -->
-                <input type="date" id="chkin" name="chkin" onchange="validateDate()">
-                <!-- Error message display -->
-                <span id="dateErrorMessage" style="color: red;"></span>
-
-
-                <div class="form-group">
-                  <textarea class="form-control" name="message" id="message" rows="1" placeholder="Enter Message"
-                    required="true"></textarea>
-                </div>
+            <div class="un-card mb-4">
+              <h3 class="h5 mb-3">Overview</h3>
+              <div class="table-responsive">
+                <table class="table detail-table mb-0">
+                  <tr><th>Rent per month</th><td>&#8377;<?= $rent ?></td></tr>
+                  <tr><th>Number of rooms</th><td><?= h($row['norooms']) ?></td></tr>
+                  <tr><th>City</th><td><?= h($row['CityName']) ?></td></tr>
+                  <tr><th>State</th><td><?= h($row['StateName']) ?></td></tr>
+                  <tr><th>Address</th><td><?= h($row['Address']) ?></td></tr>
+                </table>
               </div>
+            </div>
 
-              <div class="col-md-12 text-center">
-                <button type="submit" value="submit" class="btn primary-btn" name="submit">Submit</button>
+            <div class="un-card mb-4">
+              <h3 class="h5 mb-3">Facilities</h3>
+              <div class="info-grid">
+                <?php foreach ($facilities as $label => $value) { $ok = $yes($value); ?>
+                  <div class="info-item <?= $ok ? 'is-yes' : 'is-no' ?>">
+                    <span class="dot"><?= $ok ? '&#10003;' : '&times;' ?></span><?= h($label) ?>
+                  </div>
+                <?php } ?>
               </div>
-            </form>
+            </div>
+
+            <div class="un-card">
+              <h3 class="h5 mb-3">Meals included</h3>
+              <div class="info-grid">
+                <?php foreach ($meals as $label => $value) { $ok = $yes($value); ?>
+                  <div class="info-item <?= $ok ? 'is-yes' : 'is-no' ?>">
+                    <span class="dot"><?= $ok ? '&#10003;' : '&times;' ?></span><?= h($label) ?>
+                  </div>
+                <?php } ?>
+              </div>
+            </div>
           </div>
 
-          <!-- Modal footer -->
-          <div class="modal-footer">
-            <button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
-          </div>
+          <div class="col-lg-4">
+            <div class="un-card booking-card" id="book">
+              <div class="price mb-1">&#8377;<?= $rent ?> <small>/ month</small></div>
+              <p class="text-muted small mb-3">Send a booking request and the owner will confirm it.</p>
 
+              <?php if ($uid <= 0) { ?>
+                <a href="signin.php" class="btn btn-primary w-100">Login to book</a>
+                <p class="small text-muted text-center mt-2 mb-0">New here? <a href="register.php">Create an account</a></p>
+              <?php } elseif ($alreadyBooked) { ?>
+                <div class="alert alert-success mb-2">You already have an active booking for this PG.</div>
+                <a href="my-bookings.php" class="btn btn-outline-primary w-100">View my bookings</a>
+              <?php } else { ?>
+                <?php if ($bookingError) { ?>
+                  <div class="alert alert-danger py-2"><?= h($bookingError) ?></div>
+                <?php } ?>
+                <form method="post" action="pg-details.php?pid=<?= (int) $pid ?>#book">
+                  <?= csrf_field() ?>
+                  <div class="mb-3">
+                    <label class="form-label" for="chkin">Check-in date</label>
+                    <input class="form-control" type="date" id="chkin" name="chkin" required
+                      min="<?= date('Y-m-d') ?>" max="<?= date('Y-m-d', strtotime('+3 months')) ?>"
+                      value="<?= h($_POST['chkin'] ?? '') ?>">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label" for="message">Message to owner</label>
+                    <textarea class="form-control" name="message" id="message" rows="3" maxlength="500" required
+                      placeholder="Introduce yourself and mention any questions"><?= h($_POST['message'] ?? '') ?></textarea>
+                  </div>
+                  <button type="submit" class="btn btn-primary w-100" name="submit">Request booking</button>
+                </form>
+              <?php } ?>
+            </div>
+          </div>
         </div>
-      </div>
+      <?php } ?>
     </div>
-    <!-- start footer Area -->
-    <div style="margin-top:1%">
-      <?php include_once ('includes/footer.php'); ?>
-    </div>
-    <!-- End footer Area -->
+  </section>
 
-    <script src="js/vendor/jquery-2.2.4.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js"
-      integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4"
-      crossorigin="anonymous"></script>
-    <script type="text/javascript"
-      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBhOdIF3Y9382fqJYt5I_sswSrEw5eihAA"></script>
-    <script src="js/vendor/bootstrap.min.js"></script>
-    <script src="js/jquery.ajaxchimp.min.js"></script>
-    <script src="js/jquery.nice-select.min.js"></script>
-    <script src="js/jquery.sticky.js"></script>
-    <script src="js/ion.rangeSlider.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-    <script src="js/jquery.magnific-popup.min.js"></script>
-    <script src="js/owl.carousel.min.js"></script>
-    <script src="js/main.js"></script>
-  </body>
+  <?php include_once ('includes/footer.php'); ?>
+</body>
 
-  <script>
-    // function validateDate() {
-    //   var selectedDate = document.getElementById('chkin').value;
-    //   var currentDate = new Date().toISOString().slice(0, 10);
-
-    //   if (selectedDate < currentDate) {
-    //     document.getElementById('dateErrorMessage').innerText = "Please select a date in the future.";
-    //     document.getElementById('chkin').value = ''; // Clear the invalid date
-    //   } else if (selectedDate > currentDate) {
-    //     document.getElementById('dateErrorMessage').innerText = "Selected date is in the future.";
-    //   } else {
-    //     document.getElementById('dateErrorMessage').innerText = "";
-    //   }
-    // }
-
-    function validateDate() {
-      // Get today's date
-      var today = new Date();
-
-      // Set the minimum date (today)
-      var minDate = today.toISOString().split('T')[0];
-
-      // Set the maximum date (3 months from today)
-      var maxDate = new Date(today);
-      maxDate.setMonth(maxDate.getMonth() + 3);
-      var maxDateString = maxDate.toISOString().split('T')[0];
-
-      // Set the min and max attributes of the date input
-      document.getElementById("chkin").setAttribute("min", minDate);
-      document.getElementById("chkin").setAttribute("max", maxDateString);
-    }
-
-    // Call the function to set initial min and max dates
-    validateDate();
-  </script>
-
-  </html>
-<?php } ?>
+</html>

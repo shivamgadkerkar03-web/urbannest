@@ -30,18 +30,22 @@ Get-Process mysqld
 - **Database Name**: `urbanest`
 - **Initial Schema**: Located at `db/urbanest.sql`
 - **Roommate Migration**: Located at `db/roommate_migration.sql`
+- **Urban Nation Chat Migration**: Located at `db/urbannation_messages.sql`
 - If setting up on a fresh machine:
   ```powershell
   & "C:\xampp\mysql\bin\mysql.exe" -u root -e "CREATE DATABASE IF NOT EXISTS urbanest;"
   & "C:\xampp\mysql\bin\mysql.exe" -u root urbanest < "db/urbanest.sql"
   & "C:\xampp\mysql\bin\mysql.exe" -u root urbanest < "db/roommate_migration.sql"
+  & "C:\xampp\mysql\bin\mysql.exe" -u root urbanest < "db/urbannation_messages.sql"
   ```
 
 ### Step 3: Launch the Web Server
 Run the PHP development server from the project root directory:
 ```powershell
-& "C:\xampp\php\php.exe" -S localhost:8000 -t "c:\Users\shiva\OneDrive\Desktop\urbannest"
+& "C:\xampp\php\php.exe" -S localhost:8000 -t .
 ```
+
+New PG listings start as **pending** and only appear on the public site after an admin approves them under **Admin → PG Details**. Owners must also be approved before they can log in.
 
 ### Step 4: Open in Browser
 Navigate to:
@@ -54,6 +58,8 @@ http://localhost:8000/
 ## 3. Master Credential Directory & Access Portals
 
 All test accounts share the unified password: **`Test@123`**
+
+Passwords are stored with PHP `password_hash()`. The seed data still ships legacy MD5 hashes; each account is upgraded automatically the first time it logs in.
 
 ### A. System Administrator Portal
 - **Login URL**: [http://localhost:8000/admin/login.php](http://localhost:8000/admin/login.php)
@@ -72,7 +78,7 @@ All test accounts share the unified password: **`Test@123`**
 ### B. PG Owner Portal
 - **Login URL**: [http://localhost:8000/owner/login.php](http://localhost:8000/owner/login.php)
 - **Registration URL**: [http://localhost:8000/owner/owner-registration.php](http://localhost:8000/owner/owner-registration.php)
-- **Email**: `Okays`
+- **Email**: `tejasnaik@gmail.com`
 - **Password**: `Test@123`
 - **Owner Name**: Tejas Naik
 - **Mobile**: `9764413130`
@@ -128,8 +134,8 @@ All test accounts share the unified password: **`Test@123`**
 | Module | URL | Description |
 | :--- | :--- | :--- |
 | **Homepage** | `http://localhost:8000/` | Main portal hero, search, featured PGs |
-| **Find PG** | `http://localhost:8000/pg.php` | Browse all accommodations |
-| **PG Details** | `http://localhost:8000/pg-details.php?id=<id>` | Rooms, pricing, amenities, booking button |
+| **Find PG** | `http://localhost:8000/pg.php` | Browse and filter accommodations (state, type, budget, keyword) |
+| **PG Details** | `http://localhost:8000/pg-details.php?pid=<id>` | Rooms, pricing, amenities, booking button |
 | **Book PG** | `http://localhost:8000/apply-forpg.php` | Application submission form |
 | **Find Roommate** | `http://localhost:8000/find-roommate.php` | Compatibility engine, roommate directory |
 | **Have a Room** | `http://localhost:8000/have-room.php` | Post available room for co-living |
@@ -161,7 +167,8 @@ urbannest/
 ├── css/                        # Global stylesheets (main.css, bootstrap, etc.)
 ├── db/                         # Database dumps
 │   ├── urbanest.sql            # Master database dump
-│   └── roommate_migration.sql  # Roommate engine tables & constraints
+│   ├── roommate_migration.sql  # Roommate engine tables & constraints
+│   └── urbannation_messages.sql # Urban Nation buyer/seller chat messages
 ├── img/                        # Branding images, logo (pglogo.png), placeholders
 ├── includes/                   # Reusable components
 │   ├── dbconnection.php        # Global MySQL connection configuration
@@ -236,13 +243,13 @@ urbannest/
 ### Q: Why does the server show port 8000 already in use?
 - If port `8000` is occupied, start on port `8080`:
   ```powershell
-  & "C:\xampp\php\php.exe" -S localhost:8080 -t "c:\Users\shiva\OneDrive\Desktop\urbannest"
+  & "C:\xampp\php\php.exe" -S localhost:8080 -t .
   ```
   Access at `http://localhost:8080/`.
 
 ### Q: How to restart the server if closed?
 - Run the following command in PowerShell:
   ```powershell
-  & "C:\xampp\php\php.exe" -S localhost:8000 -t "c:\Users\shiva\OneDrive\Desktop\urbannest"
+  & "C:\xampp\php\php.exe" -S localhost:8000 -t .
   ```
 

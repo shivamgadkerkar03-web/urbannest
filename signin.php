@@ -1,15 +1,34 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
+if (current_user_id() > 0) {
+	redirect_to('index.php');
+}
 include ('includes/dbconnection.php');
 
+$msg = '';
 if (isset($_POST['login'])) {
-	$email = $_POST['email'];
-	$password = md5($_POST['password']);
-	$query = mysqli_query($con, "SELECT ID, MobileNumber, FullName FROM tbluser WHERE Email='$email' && Password='$password'");
-	$ret = mysqli_fetch_array($query);
-	if ($ret > 0) {
-		$ret_json = json_encode($ret);
+	csrf_check();
+	$email = trim((string) ($_POST['email'] ?? ''));
+	$password = (string) ($_POST['password'] ?? '');
+
+	$stmt = mysqli_prepare($con, "SELECT ID, MobileNumber, FullName, Password FROM tbluser WHERE Email = ? LIMIT 1");
+	mysqli_stmt_bind_param($stmt, 's', $email);
+	mysqli_stmt_execute($stmt);
+	$ret = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+	mysqli_stmt_close($stmt);
+
+	$needsRehash = false;
+	if ($ret && verify_password($password, $ret['Password'], $needsRehash)) {
+		if ($needsRehash) {
+			$newHash = hash_password($password);
+			$up = mysqli_prepare($con, "UPDATE tbluser SET Password = ? WHERE ID = ?");
+			mysqli_stmt_bind_param($up, 'si', $newHash, $ret['ID']);
+			mysqli_stmt_execute($up);
+			mysqli_stmt_close($up);
+		}
+
+		session_regenerate_id(true);
+		unset($_SESSION['csrf_token']);
 		$_SESSION['pgasuid'] = $ret['ID'];
 		$_SESSION['cno'] = $ret['MobileNumber'];
 		$_SESSION['FullName'] = $ret['FullName'];
@@ -17,33 +36,24 @@ if (isset($_POST['login'])) {
 		$dest = 'index.php';
 		if (!empty($_GET['redirect'])) {
 			$allowed = ['need-room.php', 'have-room.php', 'find-roommate.php', 'my-matches.php', 'roommate-profile.php', 'resellNation/seller.php'];
-			if (in_array($_GET['redirect'], $allowed)) {
+			if (in_array($_GET['redirect'], $allowed, true)) {
 				$dest = $_GET['redirect'];
 			}
 		}
-		header('location:' . $dest);
+		redirect_to($dest);
 	} else {
 		$msg = "Invalid Details.";
 	}
 }
 ?>
 <!DOCTYPE html>
-<html lang="zxx" class="no-js">
+<html lang="en" class="no-js">
 
 <head>
+	<?php include __DIR__ . '/includes/head.php'; ?>
 
 	<title>UrbanNest || User Signin</title>
 
-	<link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-	<!-- CSS ============================================= -->
-	<link rel="stylesheet" href="css/linearicons.css">
-	<link rel="stylesheet" href="css/font-awesome.min.css">
-	<link rel="stylesheet" href="css/nice-select.css">
-	<link rel="stylesheet" href="css/ion.rangeSlider.css" />
-	<link rel="stylesheet" href="css/ion.rangeSlider.skinFlat.css" />
-	<link rel="stylesheet" href="css/bootstrap.css">
-	<link rel="stylesheet" href="css/owl.carousel.css">
-	<link rel="stylesheet" href="css/main.css">
 	<style>
 		.login-card {
 			background: #fff;
@@ -127,6 +137,7 @@ if (isset($_POST['login'])) {
 							</div>
 						<?php } ?>
 						<form class="contact_form" action="" method="post" name="login">
+							<?= csrf_field() ?>
 							<div class="form-group mb-3">
 								<label for="email" style="font-weight: 500; font-size: 13px; color: #555;">Email Address</label>
 								<input type="email" class="form-control" id="email" name="email"
@@ -158,21 +169,6 @@ if (isset($_POST['login'])) {
 	<?php include_once ('includes/footer.php'); ?>
 	<!-- End footer Area -->
 
-	<script src="js/vendor/jquery-2.2.4.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js"
-		integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4"
-		crossorigin="anonymous"></script>
-	<script type="text/javascript"
-		src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBhOdIF3Y9382fqJYt5I_sswSrEw5eihAA"></script>
-	<script src="js/vendor/bootstrap.min.js"></script>
-	<script src="js/jquery.ajaxchimp.min.js"></script>
-	<script src="js/jquery.nice-select.min.js"></script>
-	<script src="js/jquery.sticky.js"></script>
-	<script src="js/ion.rangeSlider.js"></script>
-	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-	<script src="js/jquery.magnific-popup.min.js"></script>
-	<script src="js/owl.carousel.min.js"></script>
-	<script src="js/main.js"></script>
 </body>
 
 </html>

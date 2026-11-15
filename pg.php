@@ -1,132 +1,138 @@
 <?php
-session_start();
-error_reporting(0);
-include('includes/dbconnection.php');
+require_once __DIR__ . '/includes/security.php';
+include ('includes/dbconnection.php');
+require_once __DIR__ . '/includes/pg-card.php';
+
+$filterState  = trim((string) ($_GET['location'] ?? ''));
+$filterType   = trim((string) ($_GET['type'] ?? ''));
+$filterBudget = (int) ($_GET['budget'] ?? 0);
+$filterName   = trim((string) ($_GET['q'] ?? ''));
+if (!in_array($filterType, ['', 'Boys', 'Girls', 'Both'], true)) {
+	$filterType = '';
+}
+
+$sql = "SELECT * FROM tblpg WHERE IsActive = 1";
+$types = '';
+$params = [];
+if ($filterState !== '') {
+	$sql .= " AND StateName = ?";
+	$types .= 's';
+	$params[] = $filterState;
+}
+if ($filterType !== '') {
+	$sql .= " AND Type = ?";
+	$types .= 's';
+	$params[] = $filterType;
+}
+if ($filterBudget > 0) {
+	$sql .= " AND CAST(RPmonth AS UNSIGNED) <= ?";
+	$types .= 'i';
+	$params[] = $filterBudget;
+}
+if ($filterName !== '') {
+	$sql .= " AND (PGTitle LIKE ? OR CityName LIKE ? OR Address LIKE ?)";
+	$like = '%' . addcslashes($filterName, '%_\\') . '%';
+	$types .= 'sss';
+	array_push($params, $like, $like, $like);
+}
+$sql .= " ORDER BY ID DESC";
+
+$stmt = mysqli_prepare($con, $sql);
+if ($types !== '') {
+	mysqli_stmt_bind_param($stmt, $types, ...$params);
+}
+mysqli_stmt_execute($stmt);
+$listings = mysqli_stmt_get_result($stmt);
+$total = mysqli_num_rows($listings);
+
+$states = mysqli_query($con, "SELECT StateName FROM tblstate ORDER BY StateName");
+$isFiltered = $filterState !== '' || $filterType !== '' || $filterBudget > 0 || $filterName !== '';
 ?>
 <!DOCTYPE html>
-<html lang="zxx" class="no-js">
+<html lang="en">
 
 <head>
-	
-	<title>UrbanNest </title>
-
-	<link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-	<!--
-			CSS
-			============================================= -->
-	<link rel="stylesheet" href="css/linearicons.css">=
-	<link rel="stylesheet" href="css/font-awesome.min.css">
-	<link rel="stylesheet" href="css/nice-select.css">
-	<link rel="stylesheet" href="css/ion.rangeSlider.css" />
-	<link rel="stylesheet" href="css/ion.rangeSlider.skinFlat.css" />
-	<link rel="stylesheet" href="css/bootstrap.css">
-	<link rel="stylesheet" href="css/owl.carousel.css">
-	<link rel="stylesheet" href="css/main.css">
+	<?php include __DIR__ . '/includes/head.php'; ?>
+	<title>Find a PG | UrbanNest</title>
 </head>
 
 <body>
 
-	<?php include_once('includes/header.php');?>
-		<!-- start banner Area -->
-	<section class="banner-area relative" id="home">
+	<?php include_once('includes/header.php'); ?>
+
+	<section class="banner-area relative">
 		<div class="overlay overlay-bg"></div>
 		<div class="container">
-			<div class="row d-flex text-center align-items-center justify-content-center">
+			<div class="row text-center justify-content-center">
 				<div class="about-content col-lg-12">
-					<p class="text-white link-nav"><a href="index.php">Home </a>
-						<span class="lnr lnr-arrow-right"></span> <a href="pg.php">
-							PG Accomodation</a></p>
-					<h1 class="text-white">
-						PG Accomodation
-					</h1>
+					<p class="text-white link-nav"><a href="index.php">Home</a>
+						<span class="lnr lnr-arrow-right"></span> <span>PG Accommodation</span></p>
+					<h1 class="text-white">PG Accommodation</h1>
 				</div>
 			</div>
 		</div>
 	</section>
-	<!-- End banner Area -->
 
-	<!-- Start property Area -->
-	<section class="property-area section-gap relative" id="property">
+	<section class="section-gap">
 		<div class="container">
-			<div class="row d-flex justify-content-center">
-				<div class="col-md-10 header-text">
-					<h1>PG Accomodation in Various States or Cities</h1>
-					<p>
-						Who are in extremely love with eco friendly system.
-					</p>
-				</div>
-			</div>
-			
-			<div class="row">
-				<?php
-
-                    
-$ret=mysqli_query($con,"select * from tblpg");
-$cnt=1;
-while ($row=mysqli_fetch_array($ret)) {
-
-?>
-				<a href="pg-details.php?pid=<?php echo $row['ID'];?>">
-				<div class="col-lg-4 clikable">
-					<div class="single-property">
-						<div class="images">
-							<img class="img-fluid mx-auto d-block" src="owner/roomimages/<?php echo $row['Image'];?>" width="400" height="180" alt="">
-							<span>For PG</span>
-						</div>
-
-						<div class="desc">
-							<div class="top d-flex justify-content-between">
-								<h4><a href="pg-details.php?pid=<?php echo $row['ID'];?>">PG Name: <?php echo $row['PGTitle'];?></a></h4>
-								
-							</div>
-
-
-							<div class="middle">
-								<div class="d-flex justify-content-start">
-									<p>AC: <span class="gr"><?php echo $row['AC'];?></span></p>
-									<p>Balcony: <span class="rd"><?php echo $row['Balcony'];?></span></p>
-									<p>Laundry: <span class="rd"><?php echo $row['Furnished'];?></span></p>
-								</div>
-								<div class="d-flex justify-content-start">
-									<p>Parking: <span class="gr"><?php echo $row['Parking'];?></span></p>
-									<p>Price: <span class="rd"><?php echo $row['RPmonth'];?> P/M</span></p>
-									<p>Type: <span class="rd"><?php echo $row['Type'];?></span></p>
-								</div>
-							</div>
-							<div class="bottom d-flex justify-content-start">
-								<p><span class="lnr lnr-heart"></span> <?php echo $row['StateName'];?></p>
-								<p><span class="lnr lnr-bubble"></span> <?php echo $row['CityName'];?></p>
-								    <i class="fa fa-star rating-color"></i>
-                <i class="fa fa-star rating-color"></i>
-                <i class="fa fa-star rating-color"></i>
-                <i class="fa fa-star rating-color"></i>
-                <i class="fa fa-star"></i>
-							</div>
-						</div>
+			<form class="un-card mb-4" method="get" action="pg.php">
+				<div class="row g-3 align-items-end">
+					<div class="col-lg-3 col-md-6">
+						<label class="form-label" for="q">Search</label>
+						<input id="q" type="text" name="q" class="form-control" maxlength="100"
+							placeholder="PG name, city or area" value="<?= h($filterName) ?>">
+					</div>
+					<div class="col-lg-3 col-md-6">
+						<label class="form-label" for="location">State</label>
+						<select id="location" name="location" class="form-select">
+							<option value="">Any state</option>
+							<?php while ($state = mysqli_fetch_assoc($states)) { ?>
+								<option value="<?= h($state['StateName']) ?>" <?= $filterState === $state['StateName'] ? 'selected' : '' ?>><?= h($state['StateName']) ?></option>
+							<?php } ?>
+						</select>
+					</div>
+					<div class="col-lg-2 col-6">
+						<label class="form-label" for="type">PG for</label>
+						<select id="type" name="type" class="form-select">
+							<option value="">Anyone</option>
+							<?php foreach (['Boys', 'Girls', 'Both'] as $t) { ?>
+								<option value="<?= $t ?>" <?= $filterType === $t ? 'selected' : '' ?>><?= $t ?></option>
+							<?php } ?>
+						</select>
+					</div>
+					<div class="col-lg-2 col-6">
+						<label class="form-label" for="budget">Max rent (&#8377;)</label>
+						<input id="budget" type="number" name="budget" class="form-control" min="0" step="500"
+							value="<?= $filterBudget > 0 ? $filterBudget : '' ?>" placeholder="Any">
+					</div>
+					<div class="col-lg-2 d-flex gap-2">
+						<button class="btn btn-primary flex-fill" type="submit">Filter</button>
+						<?php if ($isFiltered) { ?><a class="btn btn-light" href="pg.php" title="Clear filters">&times;</a><?php } ?>
 					</div>
 				</div>
+			</form>
+
+			<p class="text-muted mb-3"><?= $total ?> PG<?= $total === 1 ? '' : 's' ?> found<?= $filterState !== '' ? ' in ' . h($filterState) : '' ?></p>
+
+			<div class="row g-4">
+				<?php if ($total > 0) {
+					while ($row = mysqli_fetch_assoc($listings)) { ?>
+						<div class="col-lg-4 col-md-6"><?php render_pg_card($row); ?></div>
+					<?php }
+				} else { ?>
+					<div class="col-12">
+						<div class="empty-state un-card">
+							<span class="lnr lnr-apartment"></span>
+							No PGs match your search.
+							<?php if ($isFiltered) { ?><div class="mt-2"><a href="pg.php">Clear filters</a></div><?php } ?>
+						</div>
+					</div>
 				<?php } ?>
-				
 			</div>
+		</div>
 	</section>
-	
-   <!-- start footer Area -->
-	<?php include_once('includes/footer.php');?>
-   <!-- End footer Area -->
-   
-	<script src="js/vendor/jquery-2.2.4.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js" integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4"
-	 crossorigin="anonymous"></script>
-	<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBhOdIF3Y9382fqJYt5I_sswSrEw5eihAA"></script>
-	<script src="js/vendor/bootstrap.min.js"></script>
-	<script src="js/jquery.ajaxchimp.min.js"></script>
-	<script src="js/jquery.nice-select.min.js"></script>
-	<script src="js/jquery.sticky.js"></script>
-	<script src="js/ion.rangeSlider.js"></script>
-	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-	<script src="js/jquery.magnific-popup.min.js"></script>
-	<script src="js/owl.carousel.min.js"></script>
-	<script src="js/main.js"></script>
+
+	<?php include_once('includes/footer.php'); ?>
 </body>
 
 </html>

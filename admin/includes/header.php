@@ -1,14 +1,17 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
+    http_response_code(404);
+    exit;
+}
+require_once __DIR__ . '/../../includes/security.php';
+require_once __DIR__ . '/dbconnection.php';
 ?>
 
 <header class="header fixed-top clearfix">
     <!--logo start-->
     <div class="brand">
         <a href="dashboard.php" class="logo">
-            UrbanNest| Admin
+            UrbanNest Admin
         </a>
         <div class="sidebar-toggle-box">
             <div class="fa fa-bars"></div>
@@ -28,14 +31,14 @@ include ('includes/dbconnection.php');
             <li class="dropdown">
                 <a data-toggle="dropdown" class="dropdown-toggle" href="#">
                     <?php
-                    $adid = $_SESSION['pgasaid'];
-                    $ret = mysqli_query($con, "select AdminName from tbladmin where ID='$adid'");
+                    $adid = current_admin_id();
+                    $ret = mysqli_query($con, "select AdminName from tbladmin where ID=" . $adid);
                     $row = mysqli_fetch_array($ret);
-                    $name = $row['AdminName'];
+                    $name = $row['AdminName'] ?? '';
 
                     ?>
                     <img alt="" src="images/2.png">
-                    <span class="username"><?php echo $name; ?></span>
+                    <span class="username"><?php echo h($name); ?></span>
                     <b class="caret"></b>
                 </a>
                 <ul class="dropdown-menu extended logout">

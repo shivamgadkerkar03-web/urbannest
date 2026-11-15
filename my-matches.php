@@ -1,11 +1,29 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/includes/security.php';
 include('includes/dbconnection.php');
 include_once('includes/roommate-functions.php');
 
-if (empty($_SESSION['pgasuid'])) { header('location: signin.php'); exit; }
-$uid = (int)$_SESSION['pgasuid'];
+$uid = require_user('signin.php');
+
+// Handle listing delete/toggle
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
+    $action = trim($_POST['action'] ?? '');
+    $lid    = (int)($_POST['listing_id'] ?? 0);
+
+    if ($action === 'delete_listing' && $lid) {
+        $stmt = mysqli_prepare($con, "DELETE FROM roommate_listings WHERE id = ? AND user_id = ?");
+        mysqli_stmt_bind_param($stmt, 'ii', $lid, $uid);
+        mysqli_stmt_execute($stmt);
+        redirect_to('my-matches.php?success=deleted');
+    }
+    if ($action === 'toggle_listing' && $lid) {
+        $stmt = mysqli_prepare($con, "UPDATE roommate_listings SET is_active = NOT is_active WHERE id = ? AND user_id = ?");
+        mysqli_stmt_bind_param($stmt, 'ii', $lid, $uid);
+        mysqli_stmt_execute($stmt);
+    }
+    redirect_to('my-matches.php');
+}
 
 // Flash message
 $flash = $_SESSION['rm_flash'] ?? null;
@@ -64,42 +82,14 @@ mysqli_stmt_execute($cq);
 $cr2 = mysqli_stmt_get_result($cq);
 while ($row = mysqli_fetch_assoc($cr2)) $connections[] = $row;
 
-// Handle listing delete/toggle
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = trim($_POST['action'] ?? '');
-    $lid    = (int)($_POST['listing_id'] ?? 0);
-    
-    if ($action === 'delete_listing' && $lid) {
-        $stmt = mysqli_prepare($con, "DELETE FROM roommate_listings WHERE id = ? AND user_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $lid, $uid);
-        mysqli_stmt_execute($stmt);
-        header('location: my-matches.php?success=deleted');
-        exit;
-    }
-    if ($action === 'toggle_listing' && $lid) {
-        $stmt = mysqli_prepare($con, "UPDATE roommate_listings SET is_active = NOT is_active WHERE id = ? AND user_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $lid, $uid);
-        mysqli_stmt_execute($stmt);
-        header('location: my-matches.php');
-        exit;
-    }
-}
-
 $pendingReceived = array_filter($received, fn($r) => $r['status'] === 'Pending');
 ?>
 <!DOCTYPE html>
 <html lang="en" class="no-js">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<?php include __DIR__ . '/includes/head.php'; ?>
     <title>My Matches – UrbanNest</title>
     <meta name="description" content="Manage your roommate connections, requests, and listings on UrbanNest.">
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
-    <link rel="stylesheet" href="css/linearicons.css">
-    <link rel="stylesheet" href="css/font-awesome.min.css">
-    <link rel="stylesheet" href="css/bootstrap.css">
-    <link rel="stylesheet" href="css/main.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .matches-hero { background: linear-gradient(135deg, #1a1a2e, #0f3460); color:#fff; padding: 55px 0 35px; }
         .matches-hero h1 { font-size: 2rem; font-weight: 700; }
@@ -138,7 +128,7 @@ $pendingReceived = array_filter($received, fn($r) => $r['status'] === 'Pending')
 
         <!-- Flash -->
         <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show rounded-3 mb-4">
+        <div class="alert alert-<?= esc($flash['type']) ?> alert-dismissible fade show rounded-3 mb-4">
             <?= esc($flash['msg']) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -195,7 +185,7 @@ $pendingReceived = array_filter($received, fn($r) => $r['status'] === 'Pending')
                                 <div>
                                     <h5 class="mb-1"><?= esc($myProfile['FullName']) ?></h5>
                                     <p class="text-muted mb-1 small">
-                                        <?= $myProfile['age'] ? $myProfile['age'].' yrs • ' : '' ?>
+                                        <?= $myProfile['age'] ? (int)$myProfile['age'].' yrs • ' : '' ?>
                                         <?= esc($myProfile['gender'] ?? '') ?> •
                                         <?= esc($myProfile['city'] ?? 'City not set') ?>
                                     </p>
@@ -238,13 +228,15 @@ $pendingReceived = array_filter($received, fn($r) => $r['status'] === 'Pending')
                                 <span class="badge ms-1 <?= $l['is_active'] ? 'bg-success' : 'bg-secondary' ?>"><?= $l['is_active'] ? 'Active' : 'Hidden' ?></span>
                             </div>
                             <div class="d-flex gap-1">
-                                <a href="roommate-details.php?id=<?= $l['id'] ?>&type=listing" class="btn btn-sm btn-outline-primary rounded-pill">View</a>
+                                <a href="roommate-details.php?id=<?= (int)$l['id'] ?>&type=listing" class="btn btn-sm btn-outline-primary rounded-pill">View</a>
                                 <form method="POST" style="display:inline;">
-                                    <input type="hidden" name="listing_id" value="<?= $l['id'] ?>">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="listing_id" value="<?= (int)$l['id'] ?>">
                                     <button name="action" value="toggle_listing" class="btn btn-sm btn-outline-warning rounded-pill" type="submit"><?= $l['is_active'] ? 'Hide' : 'Show' ?></button>
                                 </form>
                                 <form method="POST" onsubmit="return confirm('Delete this listing?');" style="display:inline;">
-                                    <input type="hidden" name="listing_id" value="<?= $l['id'] ?>">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="listing_id" value="<?= (int)$l['id'] ?>">
                                     <button name="action" value="delete_listing" class="btn btn-sm btn-outline-danger rounded-pill" type="submit">Delete</button>
                                 </form>
                             </div>
@@ -292,7 +284,7 @@ $pendingReceived = array_filter($received, fn($r) => $r['status'] === 'Pending')
                                 <div class="fw-bold small"><?= esc($c['other_name']) ?></div>
                                 <small class="text-muted">Connected</small>
                             </div>
-                            <a href="chat.php?user=<?= $c['other_id'] ?>" class="btn btn-sm btn-success rounded-pill">Chat</a>
+                            <a href="chat.php?user=<?= (int)$c['other_id'] ?>" class="btn btn-sm btn-success rounded-pill">Chat</a>
                         </div>
                         <?php endforeach; ?>
                         <?php endif; ?>
@@ -318,8 +310,8 @@ $pendingReceived = array_filter($received, fn($r) => $r['status'] === 'Pending')
                             </div>
                             <?php if ($r['status'] === 'Pending'): ?>
                             <div class="d-flex gap-1">
-                                <a href="respond-request.php?id=<?= $r['id'] ?>&action=accept" class="btn btn-sm btn-success rounded-pill">✓</a>
-                                <a href="respond-request.php?id=<?= $r['id'] ?>&action=reject" class="btn btn-sm btn-outline-danger rounded-pill">✗</a>
+                                <a href="respond-request.php?id=<?= (int)$r['id'] ?>&action=accept&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-sm btn-success rounded-pill">✓</a>
+                                <a href="respond-request.php?id=<?= (int)$r['id'] ?>&action=reject&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-sm btn-outline-danger rounded-pill">✗</a>
                             </div>
                             <?php endif; ?>
                         </div>
@@ -343,7 +335,7 @@ $pendingReceived = array_filter($received, fn($r) => $r['status'] === 'Pending')
                                 <span class="badge-status badge bg-<?= $s['status']==='Pending'?'warning text-dark':($s['status']==='Accepted'?'success':'secondary') ?>"><?= esc($s['status']) ?></span>
                             </div>
                             <?php if ($s['status'] === 'Pending'): ?>
-                            <a href="respond-request.php?id=<?= $s['id'] ?>&action=cancel" class="btn btn-sm btn-outline-secondary rounded-pill">Cancel</a>
+                            <a href="respond-request.php?id=<?= (int)$s['id'] ?>&action=cancel&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-sm btn-outline-secondary rounded-pill">Cancel</a>
                             <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
@@ -357,7 +349,5 @@ $pendingReceived = array_filter($received, fn($r) => $r['status'] === 'Pending')
 </section>
 
 <?php include_once('includes/footer.php'); ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/vendor/jquery-2.2.4.min.js"></script>
 </body>
 </html>

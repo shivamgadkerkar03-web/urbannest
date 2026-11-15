@@ -1,9 +1,13 @@
 <?php
-include ('includes/dbconnection.php');
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
+include('includes/dbconnection.php');
 ?>
-
+<!DOCTYPE html>
+<html>
 <head>
     <title> UrbanNation </title>
+    <meta name="csrf-token" content="<?php echo h(csrf_token()); ?>">
     <script type="application/x-javascript">
         addEventListener("load", function() {
           setTimeout(hideURLbar, 0);
@@ -31,6 +35,9 @@ include ('includes/dbconnection.php');
         crossorigin="anonymous"></script>
     <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
     <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 
 <body>
@@ -64,31 +71,24 @@ include ('includes/dbconnection.php');
                         <th></th>
                     </tr>
                     <?php
+                    $categories = ['Hm' => 'Furniture', 'E' => 'Electronics', 'L' => 'Lifestyle'];
                     $ret = mysqli_query($con, "select * from product");
                     while ($row = mysqli_fetch_array($ret)) {
-                        $cat;
-                        if ($row["category"] == "Hm") {
-                            $cat = "Furniture";
-                        } elseif ($row["category"] == "E") {
-                            $cat = "Electronics";
-                        } elseif ($row["category"] == "L") {
-                            $cat = "Lifestyle";
-                        }
-
-                        echo '
+                        $cat = $categories[$row['category']] ?? $row['category'];
+                        ?>
                         <tr class="">
-                                <td scope="row"><img class="imgCard" src="../resellNation/upload/' . $row['images'] . '"></td>
-                                <td>' . $row["sellersName"] . '</td>
-                                <td>' . $row["productName"] . '</td>
-                                <td>' . $cat . '</td>
-                                <td>' . $row["brand"] . '</td>
-                                <td>' . $row["size"] . '</td>
-                                <td>' . $row["description"] . '</td>
-                                <td>' . $row["price"] . '</td>
-                                <td>' . $row["location"] . '</td>
-                                <td><button type="button" class="btn btn-danger" id="del" prodId="' . $row["productId"] . '">Delete</button></td>
+                                <td scope="row"><img class="imgCard" src="../resellNation/upload/<?php echo h(rawurlencode(basename((string) $row['images']))); ?>" alt=""></td>
+                                <td><?php echo h($row['sellersName']); ?></td>
+                                <td><?php echo h($row['productName']); ?></td>
+                                <td><?php echo h($cat); ?></td>
+                                <td><?php echo h($row['brand']); ?></td>
+                                <td><?php echo h($row['size']); ?></td>
+                                <td><?php echo h($row['description']); ?></td>
+                                <td><?php echo h($row['price']); ?></td>
+                                <td><?php echo h($row['location']); ?></td>
+                                <td><button type="button" class="btn btn-danger js-delete-product" data-id="<?php echo (int) $row['productId']; ?>">Delete</button></td>
                             </tr>
-                            ';
+                        <?php
                     }
                     ?>
 
@@ -105,44 +105,35 @@ include ('includes/dbconnection.php');
     <script src="js/jquery.scrollTo.js"></script>
     <script>
         document.getElementById("mainTable").addEventListener("click", (event) => {
-            event.preventDefault();
-            if (event.target.tagName == "BUTTON") {
-                console.log(event.target.getAttribute("prodId"));
-                function sendData(action, data) {
-                    var url = "php/edDel.php";
-                    var jsonData = {
-                        action: action,
-                        data: event.target.getAttribute("prodId")
-                    };
-                    var options = {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(jsonData)
-                    };
-                    fetch(url, options)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error('Network response was not ok');
-                            }
-                            return response.text();
-                        })
-                        .then(data => {
-                            console.log(data);
-                            location.reload();
-                        })
-                        .catch(error => {
-                            console.error('There was a problem with the fetch operation:', error);
-                        });
-                }
-                var deleteData = {
-                    productId: event.target.getAttribute("prodId")
-                };
-                sendData("delete", deleteData);
-
+            const btn = event.target.closest('.js-delete-product');
+            if (!btn) {
+                return;
             }
-        })
+            event.preventDefault();
+            if (!confirm('Do you really want to delete this product?')) {
+                return;
+            }
+            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            fetch('php/delete-product.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+                body: JSON.stringify({ productId: btn.dataset.id })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert(data.message || 'Could not delete the product.');
+                        return;
+                    }
+                    const row = btn.closest('tr');
+                    if (row) {
+                        row.remove();
+                    }
+                })
+                .catch(() => {
+                    alert('Could not delete the product. Please try again.');
+                });
+        });
     </script>
 </body>
 
@@ -176,3 +167,4 @@ include ('includes/dbconnection.php');
         border-radius: 1rem;
     }
 </style>
+</html>

@@ -1,38 +1,53 @@
 <?php
-session_start();
-error_reporting(0);
-include ('includes/dbconnection.php');
+require_once __DIR__ . '/../includes/security.php';
+include('includes/dbconnection.php');
 
+$msg = '';
 if (isset($_POST['submit'])) {
-  $fname = $_POST['name'];
-  $mobno = $_POST['mobilnumber'];
-  $email = $_POST['email'];
-  $password = md5($_POST['password']);
-  $uploadDir = 'uploads/';
-  $uploadFile = $uploadDir . basename($_FILES['file']['name']);
-  
-  $ret = mysqli_query($con, "select Email from tblowner where Email='$email'");
-  $result = mysqli_fetch_array($ret);
-  if ($result > 0) {
-    $msg = "This email or Contact Number already associated with another account";
+  csrf_check();
+  $fname = trim((string) ($_POST['name'] ?? ''));
+  $mobno = preg_replace('/\D/', '', (string) ($_POST['mobilnumber'] ?? ''));
+  $email = trim((string) ($_POST['email'] ?? ''));
+  $password = (string) ($_POST['password'] ?? '');
+  $repeat = (string) ($_POST['repeatpassword'] ?? '');
+
+  if ($fname === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $msg = "Please enter your name and a valid email address.";
+  } elseif (!preg_match('/^[0-9]{10}$/', $mobno)) {
+    $msg = "Please enter a valid 10 digit mobile number.";
+  } elseif (strlen($password) < 8 || $password !== $repeat) {
+    $msg = "Passwords must match and be at least 8 characters long.";
   } else {
-    if (move_uploaded_file($_FILES['file']['tmp_name'], $uploadFile)) {
-      $query = mysqli_query($con, "INSERT INTO tblowner (FullName, MobileNumber, Email,  Password, VerificationFile) VALUES ('$fname', '$mobno', '$email', '$password', '$uploadFile')");
-      if ($query) {
-        header('location:login.php');
-        $msg = "You have successfully registered";
+    $stmt = mysqli_prepare($con, "SELECT ID FROM tblowner WHERE Email = ? OR MobileNumber = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmt, 'ss', $email, $mobno);
+    mysqli_stmt_execute($stmt);
+    $exists = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+
+    if ($exists) {
+      $msg = "This email or contact number is already associated with another account";
+    } else {
+      $uploadDir = __DIR__ . '/uploads';
+      $upload = store_uploaded_document($_FILES['file'] ?? [], $uploadDir);
+      protect_upload_dir($uploadDir);
+      if (!$upload['ok']) {
+        $msg = $upload['error'];
       } else {
+        $file = 'uploads/' . $upload['name'];
+        $hash = hash_password($password);
+        $stmt = mysqli_prepare($con, "INSERT INTO tblowner (FullName, MobileNumber, Email, Password, VerificationFile) VALUES (?, ?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, 'sssss', $fname, $mobno, $email, $hash, $file);
+        if (mysqli_stmt_execute($stmt)) {
+          redirect_to('login.php?registered=1');
+        }
+        mysqli_stmt_close($stmt);
+        @unlink($uploadDir . '/' . $upload['name']);
         $msg = "Something Went Wrong. Please try again";
       }
-    } else {
-      $msg = "File upload failed";
     }
   }
 }
 ?>
-
-
-
 <!DOCTYPE html>
 
 <head>
@@ -60,9 +75,9 @@ if (isset($_POST['submit'])) {
   <script src="js/jquery2.0.3.min.js"></script>
   <script type="text/javascript">
     function checkpass() {
-      if (document.signup.password.value != document.signup.repeatpassword.value) {
+      if (document.myForm.password.value != document.myForm.repeatpassword.value) {
         alert('Password and Repeat Password field does not match');
-        document.signup.repeatpassword.focus();
+        document.myForm.repeatpassword.focus();
         return false;
       }
       return true;
@@ -113,6 +128,9 @@ if (isset($_POST['submit'])) {
 		}
   </script>
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 
 <body>
@@ -123,19 +141,18 @@ if (isset($_POST['submit'])) {
       <h3 align="center">Register Now</h3>
       <hr />
       <p style="font-size:16px; color:red" align="center">
-        <?php if ($msg) {
-          echo $msg;
-        } ?>
+        <?php echo h($msg ?? ''); ?>
       </p>
       <!-- maxlength="10" pattern="[0-9]+" -->
-      <form enctype="multipart/form-data" action=" #" method="post" enctype="multipart/form-data" name="myForm">
+      <form enctype="multipart/form-data" action="" method="post" name="myForm" onsubmit="return checkpass();">
+        <?php echo csrf_field(); ?>
         <input type="text" class="ggg" name="name" placeholder="NAME" required="true">
         <input type="email" class="ggg" name="email" placeholder="E-MAIL" required="true">
         <input type="text" class="ggg" name="mobilnumber" placeholder="PHONE" required="true">
         <input type="password" class="ggg" name="password" placeholder="PASSWORD" required="true">
         <input type="password" class="ggg" name="repeatpassword" placeholder="REPEAT PASSWORD" required="true"><br><br>
         <label for="file" style="font-weight: 900;color:white;">Upload Verification Document</label><br>
-        <input type="file" class="ggg" name="file" required="true">
+        <input type="file" class="ggg" name="file" required="true" accept=".pdf,.jpg,.jpeg,.png,.webp">
         <h4><input type="checkbox" required="true" />I agree to the Terms of Service and Privacy Policy</h4>
 
         <div class="clearfix"></div>

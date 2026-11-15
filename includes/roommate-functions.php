@@ -5,6 +5,8 @@
  * Requires: $con (mysqli connection), $_SESSION['pgasuid'] (user id)
  */
 
+require_once __DIR__ . '/security.php';
+
 /**
  * Get roommate profile for a user
  */
@@ -90,6 +92,16 @@ function getRoommatePreferences($con, $filters = []) {
     if (!empty($filters['accommodation_type']) && $filters['accommodation_type'] != 'Any') {
         $where[] = "(rp.accommodation_type = ? OR rp.accommodation_type = 'Any')";
         $params[] = $filters['accommodation_type'];
+        $types .= "s";
+    }
+    if (!empty($filters['gender_preference'])) {
+        $where[] = "(rp.gender_preference = ? OR rp.gender_preference = 'Any')";
+        $params[] = $filters['gender_preference'];
+        $types .= "s";
+    }
+    if (!empty($filters['room_type'])) {
+        $where[] = "(rp.room_type = ? OR rp.room_type = 'Any')";
+        $params[] = $filters['room_type'];
         $types .= "s";
     }
 
@@ -241,20 +253,13 @@ function esc($str) {
  * Saves to roommate-uploads/ directory
  */
 function uploadRoommateImage($file, $prefix = 'rm') {
-    $upload_dir = __DIR__ . '/../roommate-uploads/';
-    if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0755, true);
+    $upload_dir = __DIR__ . '/../roommate-uploads';
+    $result = store_uploaded_image($file, $upload_dir, 5 * 1024 * 1024);
+    if (!$result['ok']) {
+        return false;
     }
-    $allowed = ['jpg', 'jpeg', 'png', 'webp'];
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, $allowed)) return false;
-    if ($file['size'] > 5 * 1024 * 1024) return false; // 5MB max
-    
-    $filename = $prefix . '_' . uniqid() . '.' . $ext;
-    if (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
-        return $filename;
-    }
-    return false;
+    protect_upload_dir($upload_dir);
+    return $result['name'];
 }
 
 /**

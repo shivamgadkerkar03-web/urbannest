@@ -1,19 +1,21 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasoid']==0)) {
-  header('location:logout.php');
-  } else{
+$ownerid = require_owner('login.php');
+
 
  if(isset($_POST['sateid'])){
- $sid=$_POST['sateid'];
+ $sid = (string) $_POST['sateid'];
 
-  $query=mysqli_query($con,"select * from tblcity join tblstate on tblstate.id=tblcity.StateID where StateName='$sid'");
+  $stmt = mysqli_prepare($con, "select tblcity.City from tblcity join tblstate on tblstate.ID=tblcity.StateID where tblstate.StateName = ?");
+  mysqli_stmt_bind_param($stmt, 's', $sid);
+  mysqli_stmt_execute($stmt);
+  $query = mysqli_stmt_get_result($stmt);
+  echo '<option value="">Select City</option>';
     while($rw=mysqli_fetch_array($query))
     {
      ?>      
- <option value="<?php echo $rw['City'];?>"><?php echo $rw['City'];?></option>
+ <option value="<?php echo h($rw['City']); ?>"><?php echo h($rw['City']); ?></option>
                   
 
-<?php }}} ?>
+<?php }} ?>

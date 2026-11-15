@@ -1,25 +1,33 @@
 <?php
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
 include('includes/dbconnection.php');
 
-if(isset($_POST['submit']))
-  {
-    $contactno=$_POST['contactno'];
-    $email=$_POST['email'];
+$msg = '';
+$attempts = (int) ($_SESSION['admin_reset_attempts'] ?? 0);
+if (isset($_POST['submit'])) {
+    csrf_check();
+    if ($attempts >= 5) {
+        $msg = "Too many attempts. Please try again later.";
+    } else {
+        $contactno = trim((string) ($_POST['contactno'] ?? ''));
+        $email = trim((string) ($_POST['email'] ?? ''));
 
-        $query=mysqli_query($con,"select ID from tbladmin where  Email='$email' and MobileNumber='$contactno' ");
-    $ret=mysqli_fetch_array($query);
-    if($ret>0){
-      $_SESSION['contactno']=$contactno;
-      $_SESSION['email']=$email;
-     header('location:reset-password.php');
+        $stmt = mysqli_prepare($con, "SELECT ID FROM tbladmin WHERE Email = ? AND MobileNumber = ? LIMIT 1");
+        mysqli_stmt_bind_param($stmt, 'ss', $email, $contactno);
+        mysqli_stmt_execute($stmt);
+        $ret = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+        mysqli_stmt_close($stmt);
+
+        if ($ret) {
+            unset($_SESSION['admin_reset_attempts']);
+            $_SESSION['admin_reset_id'] = (int) $ret['ID'];
+            redirect_to('reset-password.php');
+        }
+        $_SESSION['admin_reset_attempts'] = $attempts + 1;
+        $msg = "Invalid Details. Please try again.";
     }
-    else{
-      $msg="Invalid Details. Please try again.";
-    }
-  }
-  ?>
+}
+?>
 <!DOCTYPE html>
 <head>
 <title>UrbanNest | Forgot </title>
@@ -37,6 +45,9 @@ if(isset($_POST['submit']))
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <div class="log-w3">
@@ -46,9 +57,8 @@ if(isset($_POST['submit']))
   <h3 align="center">Forgot Password</h3>
   <hr />
 		<form action="#" method="post" name="submit">
-			<p style="font-size:16px; color:red" align="center"> <?php if($msg){
-    echo $msg;
-  }  ?> </p>
+			<?php echo csrf_field(); ?>
+			<p style="font-size:16px; color:red" align="center"> <?php echo h($msg); ?> </p>
 			<input type="email" class="ggg" name="email" placeholder="Email" required="true">
        <input class="ggg"  type="text" name="contactno" required="" placeholder="Mobile Number">
 			

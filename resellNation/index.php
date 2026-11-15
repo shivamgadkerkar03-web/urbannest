@@ -1,6 +1,5 @@
 <?php
-session_start();
-include_once('connect.php');
+require_once __DIR__ . '/includes/market.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -94,7 +93,7 @@ include_once('connect.php');
     }
 
     .btn-brand-red {
-      background: #ff3333;
+      background: #e63946;
       color: #fff !important;
       font-weight: 600;
       border-radius: 30px;
@@ -106,7 +105,7 @@ include_once('connect.php');
     }
 
     .btn-brand-red:hover {
-      background: #cc0000;
+      background: #c1121f;
       color: #fff !important;
       transform: translateY(-2px);
       box-shadow: 0 6px 18px rgba(255, 51, 51, 0.3);
@@ -147,7 +146,7 @@ include_once('connect.php');
       line-height: 44px;
       border-radius: 50%;
       background: #fff0f0;
-      color: #ff3333;
+      color: #e63946;
       font-weight: 700;
       margin: 0 auto 18px;
       font-size: 16px;
@@ -192,7 +191,7 @@ include_once('connect.php');
     }
 
     .badge-price {
-      background: #ff3333;
+      background: #e63946;
       color: #fff;
       font-weight: 700;
       padding: 6px 12px;
@@ -200,6 +199,7 @@ include_once('connect.php');
       font-size: 15px;
     }
   </style>
+    <link rel="stylesheet" href="../css/navbar.css">
 </head>
 
 <body>
@@ -313,8 +313,8 @@ include_once('connect.php');
             <div class="col-lg-3 col-md-6 col-sm-6">
               <div class="prod-card">
                 <div class="prod-img-wrap">
-                  <?php if (!empty($prod['images']) && file_exists('upload/' . $prod['images'])) { ?>
-                    <img src="upload/<?= htmlspecialchars($prod['images']) ?>" alt="<?= htmlspecialchars($prod['productName']) ?>">
+                  <?php if (!empty($prod['images']) && is_file(UN_UPLOAD_DIR . '/' . basename($prod['images']))) { ?>
+                    <img src="upload/<?= h(rawurlencode(basename($prod['images']))) ?>" alt="<?= h($prod['productName']) ?>">
                   <?php } else { ?>
                     <img src="./images/Thrift store.jpg" alt="Item Image">
                   <?php } ?>
@@ -322,18 +322,18 @@ include_once('connect.php');
                 <div class="p-3 d-flex flex-column justify-content-between flex-grow-1">
                   <div>
                     <span class="badge bg-light text-secondary border px-2 py-1 mb-2" style="font-size: 11px;">
-                      <?= htmlspecialchars($prod['category'] ?? 'Thrift') ?>
+                      <?= h(un_category_label($prod['category'])) ?>
                     </span>
                     <h5 class="fw-bold mb-1 text-truncate" style="color: #1e293b; font-size: 16px;">
-                      <?= htmlspecialchars($prod['productName']) ?>
+                      <?= h($prod['productName']) ?>
                     </h5>
                     <p class="text-muted small text-truncate mb-2">
-                      <ion-icon name="location-outline" class="align-middle"></ion-icon> <?= htmlspecialchars($prod['location'] ?? 'Goa') ?>
+                      <ion-icon name="location-outline" class="align-middle"></ion-icon> <?= h($prod['location'] ?? 'Goa') ?>
                     </p>
                   </div>
                   <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
                     <span class="badge-price">₹<?= number_format((int)$prod['price']) ?></span>
-                    <a href="product.php?id=<?= $prod['productId'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                    <a href="product.php?id=<?= (int) $prod['productId'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
                       Details
                     </a>
                   </div>
@@ -420,7 +420,7 @@ include_once('connect.php');
         </div>
         <div class="modal-body text-center py-4">
           <div class="mb-3">
-            <span class="d-inline-flex p-3 rounded-circle" style="background: #fff0f0; color: #ff3333; font-size: 32px;">
+            <span class="d-inline-flex p-3 rounded-circle" style="background: #fff0f0; color: #e63946; font-size: 32px;">
               <ion-icon name="lock-closed-outline"></ion-icon>
             </span>
           </div>
@@ -431,7 +431,7 @@ include_once('connect.php');
         </div>
         <div class="modal-footer border-0 pt-0 d-flex justify-content-center gap-2 pb-4">
           <button type="button" class="btn btn-light rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">Cancel</button>
-          <a href="../signin.php" class="btn-brand-red">Sign In Now</a>
+          <a href="../signin.php?redirect=resellNation/seller.php" class="btn-brand-red">Sign In Now</a>
         </div>
       </div>
     </div>

@@ -1,11 +1,4 @@
-<script>
-    <?php
-    if (!isset($_SESSION['pgasuid'])) {
-        ?>
-            alert("login to continue");
-            window.location.href = '../signin.php';
-        <?php
-        // header("Location: ../signin.php");
-    }
-    ?>
-</script>
+<?php
+require_once __DIR__ . '/../../includes/security.php';
+
+$uid = require_user('../signin.php?redirect=resellNation/seller.php');

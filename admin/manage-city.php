@@ -1,30 +1,33 @@
 <?php  
-session_start();
-error_reporting(0);
+require_once __DIR__ . '/../includes/security.php';
+$adminid = require_admin('login.php');
 include('includes/dbconnection.php');
-if (strlen($_SESSION['pgasaid']==0)) {
-  header('location:logout.php');
-  } else{
+
 
 // For deletion
-if($_GET['delid']){
-$sid=$_GET['delid'];
-$query=mysqli_query($con,"delete from tblcity where ID ='$sid'");
-if($query){
-echo "<script>alert('Data Deleted');</script>";
-echo "<script>window.location.href='manage-city.php'</script>";
-} else{
-echo "<script>alert('Some thing went wrong . Please try again');</script>";
-echo "<script>window.location.href='manage-city.php'</script>";
-}} 
-
-
+if (isset($_GET['delid'])) {
+    $sid = (int) $_GET['delid'];
+    $ok = false;
+    if (csrf_valid() && $sid > 0) {
+        $stmt = mysqli_prepare($con, "DELETE FROM tblcity WHERE ID = ?");
+        mysqli_stmt_bind_param($stmt, 'i', $sid);
+        $ok = mysqli_stmt_execute($stmt) && mysqli_stmt_affected_rows($stmt) > 0;
+        mysqli_stmt_close($stmt);
+    }
+    if ($ok) {
+        echo "<script>alert('Data Deleted');</script>";
+    } else {
+        echo "<script>alert('Some thing went wrong . Please try again');</script>";
+    }
+    echo "<script>window.location.href='manage-city.php'</script>";
+    exit;
+}
 ?>
 
 
 <!DOCTYPE html>
 <head>
-<title>UrbanNest || Manage State </title>
+<title>UrbanNest || Manage City </title>
 <script type="application/x-javascript"> addEventListener("load", function() { setTimeout(hideURLbar, 0); }, false); function hideURLbar(){ window.scrollTo(0,1); } </script>
 <!-- bootstrap-css -->
 <link rel="stylesheet" href="css/bootstrap.min.css" >
@@ -39,6 +42,9 @@ echo "<script>window.location.href='manage-city.php'</script>";
 <link href="css/font-awesome.css" rel="stylesheet"> 
 <!-- //font-awesome icons -->
 <script src="js/jquery2.0.3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/panel.css">
 </head>
 <body>
 <section id="container">
@@ -87,10 +93,10 @@ while ($row=mysqli_fetch_array($ret)) {
           <tr data-expanded="true">
             <td><?php echo $cnt;?></td>
               
-                  <td><?php  echo $row['City'];?></td>
-                  <td><?php  echo $row['CreationDate'];?></td>
-                  <td><a href="edit-city.php?editid=<?php echo $row['ID'];?>" class="btn btn-primary">Edit City</a>
-                      <a href="manage-city.php?delid=<?php echo $row['ID'];?>" class="btn btn-danger" onClick="return confirm('Do you really want to delete?');">Delete</a>
+                  <td><?php echo h($row['City']); ?></td>
+                  <td><?php echo h($row['CreationDate']); ?></td>
+                  <td><a href="edit-city.php?editid=<?php echo h($row['ID']); ?>" class="btn btn-primary">Edit City</a>
+                      <a href="manage-city.php?delid=<?php echo h($row['ID']); ?>&csrf_token=<?= h(csrf_token()) ?>" class="btn btn-danger" onClick="return confirm('Do you really want to delete?');">Delete</a>
                 </tr>
                 <?php 
 $cnt=$cnt+1;
@@ -120,4 +126,3 @@ $cnt=$cnt+1;
 <script src="js/jquery.scrollTo.js"></script>
 </body>
 </html>
-<?php }  ?>
