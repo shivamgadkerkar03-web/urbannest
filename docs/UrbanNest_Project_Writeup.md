@@ -203,323 +203,27 @@ Five views describe UrbanNest: who uses it (UML use case), what data it holds (U
 
 ### 5.1 Use case diagram
 
-```mermaid
-flowchart LR
-    Tenant(("Tenant"))
-    Owner(("PG owner"))
-    Admin(("Admin"))
+![Use case diagram](images/01-use-case-diagram.png)
 
-    subgraph System["UrbanNest system"]
-        direction TB
-        UC1(["Register and log in"])
-        UC2(["Search and filter PGs"])
-        UC3(["Request a PG booking"])
-        UC4(["Track my bookings"])
-        UC5(["Build roommate profile"])
-        UC6(["Post a room or requirement"])
-        UC7(["Send or accept room requests"])
-        UC8(["Chat with roommates"])
-        UC9(["Sell an item on Urban Nation"])
-        UC10(["Message a seller"])
-        UO1(["Register with document"])
-        UO2(["Log in after approval"])
-        UO3(["List a new PG"])
-        UO4(["Edit or delete own PGs"])
-        UO5(["View booking requests"])
-        UO6(["Confirm or cancel booking"])
-        UO7(["Search bookings"])
-        UA1(["Approve or block owners"])
-        UA2(["Approve or block PG listings"])
-        UA3(["Manage states and cities"])
-        UA4(["View users and bookings"])
-        UA5(["Remove store listings"])
-        UA6(["Edit About and Contact pages"])
-    end
-
-    Tenant --- UC1 & UC2 & UC3 & UC4 & UC5 & UC6 & UC7 & UC8 & UC9 & UC10
-    Owner --- UO1 & UO2 & UO3 & UO4 & UO5 & UO6 & UO7
-    Admin --- UA1 & UA2 & UA3 & UA4 & UA5 & UA6
-```
-
-Tenants use ten features across PGs, roommates and the store. Owners manage their own PGs and bookings, and the admin approves owners and PGs and maintains reference data.
+Use cases are grouped by module inside the system boundary. Tenant, PG owner and Admin are specialisations (UML generalization) of a Registered user, so all three share Log in and Change password. Tenants use the Account, PG accommodation, Roommate matching and Urban Nation features; owners work in the Owner portal; the admin works in the Admin portal.
 
 ### 5.2 Class diagram
 
-```mermaid
-classDiagram
-    class Admin {
-        -int ID
-        -string AdminName
-        -string UserName
-        -string Email
-        -bigint MobileNumber
-        -string Password
-        +approveOwner()
-        +approvePG()
-        +manageLocations()
-    }
-    class Owner {
-        -int ID
-        -string FullName
-        -string Email
-        -bigint MobileNumber
-        -string Password
-        -string VerificationFile
-        -int status
-        +addPG()
-        +respondToBooking()
-    }
-    class PG {
-        -int ID
-        -int OwnerID
-        -string PGTitle
-        -string Type
-        -string RPmonth
-        -string StateName
-        -string CityName
-        -string norooms
-        -string Address
-        -string Image
-        -string facilities_9_columns
-        -string meals_3_columns
-        -int IsActive
-    }
-    class User {
-        -int ID
-        -string FullName
-        -string Email
-        -bigint MobileNumber
-        -date dob
-        -string Password
-        +bookPG()
-        +sendRequest()
-        +sellItem()
-    }
-    class Booking {
-        -int ID
-        -int BookingNumber
-        -int Userid
-        -int Pgid
-        -date CheckinDate
-        -string UserMsg
-        -timestamp BookingDate
-        -string Status
-        -string Remark
-        -timestamp RemDate
-    }
-    class RoommateProfile {
-        -int user_id
-        -enum gender
-        -int age
-        -string occupation
-        -string city
-        -int monthly_budget
-        -enum sleeping_schedule
-        -enum cleanliness
-        -enum food_preference
-        -enum smoking
-        -enum drinking
-        -enum social_lifestyle
-        -date move_in_date
-    }
-    class RoommateListing {
-        -int id
-        -int user_id
-        -string title
-        -string city
-        -int monthly_rent
-        -int security_deposit
-        -enum room_type
-        -text amenities
-        -int is_active
-    }
-    class RoommateRequest {
-        -int id
-        -int sender_id
-        -int receiver_id
-        -int listing_id
-        -enum status
-        -text message
-    }
-    class Product {
-        -int productId
-        -int userId
-        -string productName
-        -string category
-        -string brand
-        -string size
-        -string description
-        -int price
-        -string location
-        -string images
-    }
-    class ProductMessage {
-        -int id
-        -int product_id
-        -int sender_id
-        -int receiver_id
-        -text body
-        -int is_read
-        -datetime created_at
-    }
-
-    Admin ..> Owner : approves
-    Admin ..> PG : approves
-    Owner "1" -- "*" PG : owns
-    PG "1" -- "*" Booking
-    User "1" -- "*" Booking : makes
-    User "1" -- "0..1" RoommateProfile : has
-    User "1" -- "*" RoommateListing : posts
-    User "1" -- "*" RoommateRequest : sender / receiver
-    RoommateListing "0..1" -- "*" RoommateRequest : about
-    User "1" -- "*" Product : sells
-    Product "1" -- "*" ProductMessage
-```
+![Class diagram](images/02-class-diagram.png)
 
 Each class maps to one database table, and attribute names are the real column names from `db/urbanest.sql`, `db/roommate_migration.sql` and `db/urbannation_messages.sql`. Multiplicities follow the foreign keys: one owner has many PGs, one PG and one user each have many bookings, and each user has at most one roommate profile (unique `user_id`). Booking `Status` is blank while pending, then `Confirmed` or `Cancelled`; request `status` is `Pending`, `Accepted`, `Rejected` or `Cancelled`. The code is procedural PHP, so the operations are the main actions each role performs, implemented as PHP pages rather than class methods. Supporting tables (State, City, Pages, RoommatePreference, roommate conversations, messages and blocks) appear in the ER diagrams below.
 
 ### 5.3 Entity–relationship (ER) diagrams
 
-The class diagram shows how the entities relate; the ER diagrams below show exactly which column joins which. They use crow's-foot notation: each relationship is labelled with the foreign-key (FK) column and the primary-key (PK) or unique-key (UK) column it references. `||` means exactly one, `o|` zero or one, and `o{` zero or many.
+The class diagram shows how the entities relate; the ER diagrams below show exactly which column joins which. They use crow's-foot notation: each line starts at a foreign-key (FK) column and ends at the primary-key (PK) or unique-key (UK) column it references. A crow's foot marks the "many" side, two bars mark "exactly one", and a circle with a bar marks "zero or one".
 
 **ER diagram 1: PG accommodation and Urban Nation**
 
-```mermaid
-erDiagram
-    tblstate ||--o{ tblcity : "tblcity.StateID -> tblstate.ID"
-    tblstate ||--o{ tblpg : "tblpg.StateName -> tblstate.StateName"
-    tblcity ||--o{ tblpg : "tblpg.CityName -> tblcity.City"
-    tblowner ||--o{ tblpg : "tblpg.OwnerID -> tblowner.ID"
-    tblpg ||--o{ tblbookpg : "tblbookpg.Pgid -> tblpg.ID"
-    tbluser ||--o{ tblbookpg : "tblbookpg.Userid -> tbluser.ID"
-    tbluser ||--o{ product : "product.userId -> tbluser.ID"
-    product ||--o{ product_messages : "product_messages.product_id -> product.productId"
-    tbluser ||--o{ product_messages : "product_messages.sender_id -> tbluser.ID"
-    tbluser ||--o{ product_messages : "product_messages.receiver_id -> tbluser.ID"
-
-    tblstate {
-        int ID PK
-        varchar StateName UK
-    }
-    tblcity {
-        int ID PK
-        int StateID FK
-        varchar City UK
-    }
-    tblowner {
-        int ID PK
-        varchar FullName
-        varchar Email
-        tinyint status
-    }
-    tblpg {
-        int ID PK
-        int OwnerID FK
-        varchar StateName FK
-        varchar CityName FK
-        varchar PGTitle UK
-        varchar RPmonth
-        int IsActive
-    }
-    tblbookpg {
-        int ID PK
-        int Userid FK
-        int Pgid FK
-        int BookingNumber
-        date CheckinDate
-        varchar Status
-    }
-    tbluser {
-        int ID PK
-        varchar FullName
-        varchar Email
-        bigint MobileNumber
-        varchar Password
-    }
-    product {
-        int productId PK
-        int userId FK
-        varchar productName
-        varchar category
-        int price
-    }
-    product_messages {
-        int id PK
-        int product_id FK
-        int sender_id FK
-        int receiver_id FK
-        text body
-        tinyint is_read
-    }
-```
+![ER diagram 1: PG accommodation and Urban Nation](images/03-er-diagram-pg-urban-nation.png)
 
 **ER diagram 2: Roommate module**
 
-```mermaid
-erDiagram
-    tbluser ||--o| roommate_profiles : "roommate_profiles.user_id -> tbluser.ID"
-    tbluser ||--o{ roommate_listings : "roommate_listings.user_id -> tbluser.ID"
-    tbluser ||--o{ roommate_preferences : "roommate_preferences.user_id -> tbluser.ID"
-    tbluser ||--o{ roommate_requests : "roommate_requests.sender_id -> tbluser.ID"
-    tbluser ||--o{ roommate_requests : "roommate_requests.receiver_id -> tbluser.ID"
-    roommate_listings |o--o{ roommate_requests : "roommate_requests.listing_id -> roommate_listings.id"
-    tbluser ||--o{ roommate_conversations : "roommate_conversations.user1_id -> tbluser.ID"
-    tbluser ||--o{ roommate_conversations : "roommate_conversations.user2_id -> tbluser.ID"
-    roommate_conversations ||--o{ roommate_messages : "roommate_messages.conversation_id -> roommate_conversations.id"
-    tbluser ||--o{ roommate_messages : "roommate_messages.sender_id -> tbluser.ID"
-    tbluser ||--o{ roommate_blocks : "roommate_blocks.blocker_id -> tbluser.ID"
-    tbluser ||--o{ roommate_blocks : "roommate_blocks.blocked_id -> tbluser.ID"
-
-    tbluser {
-        int ID PK
-        varchar FullName
-        varchar Email
-    }
-    roommate_profiles {
-        int id PK
-        int user_id FK, UK
-        enum sleeping_schedule
-        enum cleanliness
-    }
-    roommate_listings {
-        int id PK
-        int user_id FK
-        varchar title
-        int monthly_rent
-    }
-    roommate_preferences {
-        int id PK
-        int user_id FK
-        varchar preferred_city
-        int budget_max
-    }
-    roommate_requests {
-        int id PK
-        int sender_id FK
-        int receiver_id FK
-        int listing_id FK "nullable"
-        enum status
-    }
-    roommate_conversations {
-        int id PK
-        int user1_id FK
-        int user2_id FK
-        timestamp last_message_at
-    }
-    roommate_messages {
-        int id PK
-        int conversation_id FK
-        int sender_id FK
-        text message
-        tinyint is_read
-    }
-    roommate_blocks {
-        int id PK
-        int blocker_id FK
-        int blocked_id FK
-        timestamp created_at
-    }
-```
+![ER diagram 2: Roommate module](images/04-er-diagram-roommate.png)
 
 Each user has at most one roommate profile because `roommate_profiles.user_id` is unique, and a request's `listing_id` is optional (set to NULL if the listing is deleted).
 
@@ -550,52 +254,13 @@ Each user has at most one roommate profile because `roommate_profiles.user_id` i
 
 ### 5.4 Sequence diagram: PG booking
 
-```mermaid
-sequenceDiagram
-    actor Tenant
-    participant Web as Web app (PHP)
-    participant DB as MySQL database
-    actor Owner as PG owner
-
-    Note over Tenant,DB: Tenant books
-    Tenant->>Web: 1. Open PG details (pid)
-    Web->>DB: 2. SELECT PG WHERE IsActive = 1
-    DB-->>Web: 3. PG row
-    Web-->>Tenant: 4. Details page + booking form
-    Tenant->>Web: 5. Submit check-in date, message
-    Web->>Web: 6. Validate request
-    Web->>DB: 7. INSERT booking (Status blank)
-    Web-->>Tenant: 8. Redirect: request sent
-
-    Note over Web,Owner: Owner responds
-    Owner->>Web: 9. Confirm / cancel
-    Web->>DB: 10. UPDATE (own PG only)
-    Web-->>Owner: 11. Saved
-
-    Note over Tenant,DB: Tenant checks status
-    Tenant->>Web: 12. Open My Bookings
-    Web->>DB: 13. SELECT bookings of user
-    Web-->>Tenant: 14. Confirmed or Cancelled
-```
+![Sequence diagram: PG booking](images/05-sequence-diagram-booking.png)
 
 Solid arrows are requests and dashed arrows are responses. In step 6 the web app checks that the user is logged in, the CSRF token is valid, the check-in date is between today and 3 months ahead, and the user has no active booking for the same PG. In step 10 the update only succeeds if the PG belongs to the logged-in owner.
 
 ### 5.5 State diagram: booking lifecycle
 
-```mermaid
-stateDiagram-v2
-    [*] --> Pending : tenant submits
-    Pending : Status blank, awaiting owner
-    Confirmed : Status = Confirmed
-    Cancelled : Status = Cancelled
-    Pending --> Confirmed : owner confirms
-    Pending --> Cancelled : owner cancels
-    Confirmed --> Cancelled : owner cancels from the bookings list
-    note right of Cancelled
-        Cancelled bookings stay in history.
-        The tenant can request the PG again.
-    end note
-```
+![State diagram: booking lifecycle](images/06-state-diagram-booking.png)
 
 A new booking is Pending (blank status). The owner can confirm or cancel it from the request page, which only accepts pending bookings, and can still cancel a confirmed booking from the all-bookings list. A cancelled booking is never deleted.
 
@@ -605,88 +270,25 @@ Four flows show how work moves through UrbanNest: the end-to-end PG flow across 
 
 ### 6.1 PG listing and booking flow
 
-```mermaid
-flowchart TD
-    subgraph OwnerLane["PG owner"]
-        A1["Register with verification document"]
-        A3["Log in and add a PG<br/>(saved with IsActive = 0)"]
-        A6{"Confirm?"}
-        A7["Confirmed"]
-        A8["Cancelled"]
-    end
-    subgraph AdminLane["Admin"]
-        B1{"Approve owner?"}
-        B2["Stays inactive (status 0)"]
-        B3{"Approve PG?"}
-        B4["PG stays hidden"]
-    end
-    subgraph TenantLane["Tenant"]
-        C1["PG listed publicly;<br/>tenant requests booking"]
-        C2["Sees status in My Bookings"]
-    end
-
-    A1 --> B1
-    B1 -- "no" --> B2
-    B1 -- "yes: status = 1" --> A3
-    A3 --> B3
-    B3 -- "no" --> B4
-    B3 -- "yes: IsActive = 1" --> C1
-    C1 -- "request reaches owner" --> A6
-    A6 -- "yes" --> A7
-    A6 -- "no" --> A8
-    A7 --> C2
-    A8 --> C2
-```
+![Process flow: PG listing and booking](images/07-flow-pg-listing-booking.png)
 
 Owners register as inactive (`status = 0`) and new PGs are saved hidden (`IsActive = 0`), so nothing reaches tenants without two admin approvals. The owner then confirms or cancels each booking request.
 
 ### 6.2 Roommate matching flow
 
-```mermaid
-flowchart LR
-    R1["Create roommate profile<br/>(for scoring)"] --> R2["Post a room or a requirement"]
-    R2 --> R3["Browse matches<br/>with compatibility %"]
-    R3 --> R4["Send request<br/>(status = Pending)"]
-    R4 --> R5{"Receiver accepts?"}
-    R5 -- "yes" --> R6["Accepted;<br/>conversation created"]
-    R6 --> R7["Chat in Messages<br/>(unread badge in navbar)"]
-    R5 -- "no" --> R8["Rejected"]
-    R8 -- "sending again reopens the request as Pending" --> R4
-```
+![Process flow: roommate matching](images/08-flow-roommate-matching.png)
 
 Only the receiver can accept or reject, and only the sender can cancel while the request is Pending. Sending again after a rejection or cancellation reopens the same request row as Pending.
 
 ### 6.3 Urban Nation marketplace flow
 
-```mermaid
-flowchart LR
-    U1["Seller lists an item<br/>(type and size checked)"] --> U2["Item shown in store<br/>(searchable by category)"]
-    U2 --> U3["Buyer opens item<br/>(logs in to chat)"]
-    U3 --> U4["Buyer messages seller<br/>about the item"]
-    U4 --> U5["Seller replies<br/>(unread count in navbar)"]
-    U5 --> U6["Meet in person,<br/>inspect and pay directly"]
-    U2 -- "any time" --> U7["Seller edits or deletes listing<br/>(delete removes image and chat)"]
-```
+![Process flow: Urban Nation marketplace](images/09-flow-urban-nation.png)
 
 Urban Nation charges no commission and has no online payment; buyers and sellers agree through chat and pay in person. Only the seller can edit or delete a listing.
 
 ### 6.4 Request security flow
 
-```mermaid
-flowchart TD
-    S0["Request reaches a PHP page"] --> D1{"Protected page?"}
-    D1 -- "no" --> O1["Show public page"]
-    D1 -- "yes" --> D2{"Logged in with the right role?"}
-    D2 -- "no" --> O2["Redirect to login page"]
-    D2 -- "yes" --> D3{"Owner still approved?<br/>(owner pages only)"}
-    D3 -- "no" --> O3["Log out, back to login"]
-    D3 -- "yes" --> D4{"Changes data?"}
-    D4 -- "no: read only" --> Q["Prepared query + ownership check"]
-    D4 -- "yes" --> D5{"CSRF token valid?"}
-    D5 -- "no" --> O4["Reject (HTTP 400 / 403)"]
-    D5 -- "yes" --> Q
-    Q --> R["Render page or JSON response"]
-```
+![Process flow: request security](images/10-flow-request-security.png)
 
 These checks live in `includes/security.php`: `require_user()`, `require_owner()` and `require_admin()` handle login and role, `require_owner()` also re-checks that the owner is still approved, and `csrf_check()` rejects forged form submissions. At login, passwords are verified with `password_verify()` (legacy MD5 hashes are upgraded) and the session ID is regenerated.
 
