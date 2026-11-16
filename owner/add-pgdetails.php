@@ -23,6 +23,8 @@ if (isset($_POST['submit'])) {
         $msg = "Your account is awaiting admin approval.";
     } elseif ($fields['pgname'] === '' || $fields['state'] === '' || $fields['city'] === '') {
         $msg = "Please fill in all required fields.";
+    } elseif (!city_in_state($con, $fields['state'], $fields['city'])) {
+        $msg = "Please choose a city that belongs to the selected state.";
     } else {
         $imageDir = __DIR__ . '/roomimages';
         $upload = store_uploaded_image($_FILES['roomimages'] ?? [], $imageDir);

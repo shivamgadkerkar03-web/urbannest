@@ -34,7 +34,13 @@ if (isset($_POST['submit'])) {
         $f['table'], $f['laundry'], $f['security'], $f['breakfast'], $f['lunch'], $f['dinner'],
         $eid, $ownerid
     );
-    if ($f['pgname'] !== '' && mysqli_stmt_execute($stmt)) {
+    if (!in_array($f['typepg'], ['Boys', 'Girls', 'Both'], true)) {
+        $msg = "Please choose who the PG is for.";
+    } elseif ($f['pgname'] === '' || $f['state'] === '' || $f['city'] === '') {
+        $msg = "Please fill in all required fields.";
+    } elseif (!city_in_state($con, $f['state'], $f['city'])) {
+        $msg = "Please choose a city that belongs to the selected state.";
+    } elseif (mysqli_stmt_execute($stmt)) {
         $msg = "PG details has been Updated.";
     } else {
         $msg = "Something Went Wrong. Please try again";
@@ -111,19 +117,35 @@ while ($row=mysqli_fetch_array($ret)) {
                             <input type="text" name="pgname" class="form-control" required="true" value="<?php echo h($row['PGTitle']); ?>">
                         </div>
                     </div>
+
+                    <div class="form-group">
+                        <label class="col-sm-3 control-label">Type of PG:</label>
+                        <div class="col-sm-6">
+                            <?php $currentType = in_array($row['Type'], ['Boys', 'Girls', 'Both'], true) ? $row['Type'] : 'Boys';
+                            foreach (['Boys', 'Girls', 'Both'] as $t) { ?>
+                            <label class="me-3"><input type="radio" name="typepg" value="<?php echo $t; ?>" <?php echo $currentType === $t ? 'checked' : ''; ?>> <?php echo $t; ?></label>
+                            <?php } ?>
+                        </div>
+                    </div>
                     
                     <div class="form-group">
                         <label class="col-sm-3 control-label col-lg-3" for="inputSuccess">Choose State</label>
                         <div class="col-lg-6">
                            
                  <select class="form-control m-bot15" name="state" id="state" onChange="getCity(this.value);">
-                                <option value="<?php echo h($row['StateName']); ?>"><?php echo h($row['StateName']); ?></option>
-                                <?php $query1=mysqli_query($con,"select * from tblstate");
-              while($row1=mysqli_fetch_array($query1))
-              {
-              ?>    
-              <option value="<?php echo h($row1['StateName']); ?>"><?php echo h($row1['StateName']); ?></option>
-                  <?php } ?> 
+                                <?php
+              $stateFound = false;
+              $query1 = mysqli_query($con, "select StateName from tblstate order by StateName");
+              $stateOptions = '';
+              while ($row1 = mysqli_fetch_array($query1)) {
+                  $isCurrent = trim($row1['StateName']) === trim($row['StateName']);
+                  $stateFound = $stateFound || $isCurrent;
+                  $stateOptions .= '<option value="' . h($row1['StateName']) . '"' . ($isCurrent ? ' selected' : '') . '>' . h($row1['StateName']) . '</option>';
+              }
+              if (!$stateFound) { ?>
+              <option value="<?php echo h($row['StateName']); ?>" selected><?php echo h($row['StateName']); ?></option>
+              <?php }
+              echo $stateOptions; ?>
                             </select>
                         </div>
                     </div>
@@ -131,7 +153,24 @@ while ($row=mysqli_fetch_array($ret)) {
                         <label class="col-sm-3 control-label col-lg-3" for="inputSuccess">Choose City</label>
                         <div class="col-lg-6">
                           <select class="form-control m-bot15" name="city" id="city" required="true">
-                 <option value="<?php echo h($row['CityName']); ?>"><?php echo h($row['CityName']); ?></option>
+                 <option value="">Select City</option>
+                 <?php
+              $cityFound = false;
+              $cityStmt = mysqli_prepare($con, "select tblcity.City from tblcity join tblstate on tblstate.ID = tblcity.StateID where tblstate.StateName = ? order by tblcity.City");
+              mysqli_stmt_bind_param($cityStmt, 's', $row['StateName']);
+              mysqli_stmt_execute($cityStmt);
+              $cityRes = mysqli_stmt_get_result($cityStmt);
+              $cityOptions = '';
+              while ($cityRow = mysqli_fetch_assoc($cityRes)) {
+                  $isCurrent = trim($cityRow['City']) === trim($row['CityName']);
+                  $cityFound = $cityFound || $isCurrent;
+                  $cityOptions .= '<option value="' . h(trim($cityRow['City'])) . '"' . ($isCurrent ? ' selected' : '') . '>' . h(trim($cityRow['City'])) . '</option>';
+              }
+              mysqli_stmt_close($cityStmt);
+              if (!$cityFound && trim($row['CityName']) !== '') { ?>
+                 <option value="<?php echo h($row['CityName']); ?>" selected><?php echo h($row['CityName']); ?></option>
+              <?php }
+              echo $cityOptions; ?>
                             </select>  
 
 

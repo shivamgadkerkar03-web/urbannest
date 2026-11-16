@@ -3,19 +3,22 @@ require_once __DIR__ . '/../includes/security.php';
 include('includes/dbconnection.php');
 $ownerid = require_owner('login.php');
 
+if (isset($_POST['sateid'])) {
+    $state = trim((string) $_POST['sateid']);
 
- if(isset($_POST['sateid'])){
- $sid = (string) $_POST['sateid'];
+    $stmt = mysqli_prepare($con, "SELECT tblcity.City FROM tblcity JOIN tblstate ON tblstate.ID = tblcity.StateID WHERE tblstate.StateName = ? ORDER BY tblcity.City");
+    mysqli_stmt_bind_param($stmt, 's', $state);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
 
-  $stmt = mysqli_prepare($con, "select tblcity.City from tblcity join tblstate on tblstate.ID=tblcity.StateID where tblstate.StateName = ?");
-  mysqli_stmt_bind_param($stmt, 's', $sid);
-  mysqli_stmt_execute($stmt);
-  $query = mysqli_stmt_get_result($stmt);
-  echo '<option value="">Select City</option>';
-    while($rw=mysqli_fetch_array($query))
-    {
-     ?>      
- <option value="<?php echo h($rw['City']); ?>"><?php echo h($rw['City']); ?></option>
-                  
+    if (mysqli_num_rows($result) === 0) {
+        echo '<option value="">No cities added for this state yet</option>';
+        exit;
+    }
 
-<?php }} ?>
+    echo '<option value="">Select City</option>';
+    while ($rw = mysqli_fetch_assoc($result)) {
+        $city = h(trim($rw['City']));
+        echo '<option value="' . $city . '">' . $city . '</option>';
+    }
+}

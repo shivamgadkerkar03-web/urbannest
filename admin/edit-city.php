@@ -86,12 +86,11 @@ while ($row=mysqli_fetch_array($ret)) {
                                         <label for="adminname" class="control-label col-lg-3">State</label>
                                         <div class="col-lg-6">
                                              <select name="statename" class="form-control wd-450" required="true" >
-                    <option value="<?php echo h($row['stid']); ?>"><?php echo h($row['stname']); ?></option>
-              <?php $query=mysqli_query($con,"select * from tblstate");
+              <?php $query=mysqli_query($con,"select * from tblstate order by StateName");
               while($rw=mysqli_fetch_array($query))
               {
-              ?>      
-                  <option value="<?php echo h($rw['ID']); ?>"><?php echo h($rw['StateName']); ?></option>
+              ?>
+                  <option value="<?php echo h($rw['ID']); ?>" <?php echo (int) $rw['ID'] === (int) $row['stid'] ? 'selected' : ''; ?>><?php echo h($rw['StateName']); ?></option>
                   <?php } ?>
                   </select>
                                         </div>

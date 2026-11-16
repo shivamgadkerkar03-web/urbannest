@@ -93,6 +93,21 @@ function json_fail(int $status, string $message): void
     exit;
 }
 
+/* ---------- Location lookups ---------- */
+
+/** True when $city is one of the cities stored for $state. */
+function city_in_state(mysqli $con, string $state, string $city): bool
+{
+    $stmt = mysqli_prepare($con, 'SELECT 1 FROM tblcity JOIN tblstate ON tblstate.ID = tblcity.StateID WHERE TRIM(tblstate.StateName) = ? AND TRIM(tblcity.City) = ? LIMIT 1');
+    $state = trim($state);
+    $city = trim($city);
+    mysqli_stmt_bind_param($stmt, 'ss', $state, $city);
+    mysqli_stmt_execute($stmt);
+    $ok = (bool) mysqli_fetch_row(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+    return $ok;
+}
+
 /* ---------- CSRF ---------- */
 
 function csrf_token(): string
