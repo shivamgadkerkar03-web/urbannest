@@ -15,7 +15,11 @@ CREATE TABLE IF NOT EXISTS `product_messages` (
   `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_receiver_unread` (`receiver_id`, `is_read`),
-  KEY `idx_thread` (`product_id`, `sender_id`, `receiver_id`)
+  KEY `idx_thread` (`product_id`, `sender_id`, `receiver_id`),
+  KEY `idx_sender` (`sender_id`),
+  CONSTRAINT `fk_pmsg_product` FOREIGN KEY (`product_id`) REFERENCES `product` (`productId`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_pmsg_sender` FOREIGN KEY (`sender_id`) REFERENCES `tbluser` (`ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_pmsg_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `tbluser` (`ID`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Carry over the sample conversation shipped in urbanest.sql

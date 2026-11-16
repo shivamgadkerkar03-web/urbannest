@@ -54,7 +54,7 @@ if (isset($_POST['submit_listing'])) {
         $imageArr = [];
         if (!empty($_FILES['images']['name'][0]) && is_array($_FILES['images']['name'])) {
             foreach($_FILES['images']['name'] as $k => $name) {
-                if (count($imageArr) >= 6) break;
+                if (count($imageArr) >= 5) break;
                 if (!empty($name)) {
                     $file = [
                         'name'     => $_FILES['images']['name'][$k],
